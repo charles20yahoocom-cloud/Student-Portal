@@ -1,0 +1,35 @@
+<button
+  type="button"
+  data-pwa-install
+  class="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 rounded-full border border-white/30 bg-[#0B1747] px-4 py-3 text-sm font-semibold text-white shadow-xl transition hover:bg-[#16307F] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#D4AF37]/60"
+  aria-label="Install PCC Student Portal"
+>
+  <svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" />
+  </svg>
+  <span>Install app</span>
+</button>
+
+<dialog
+  data-pwa-help
+  class="w-[calc(100%-2rem)] max-w-md rounded-2xl border border-[#D4AF37]/50 bg-[#F7F1E1] p-0 text-[#0B1747] shadow-2xl backdrop:bg-[#070E2E]/60"
+  aria-labelledby="pwa-help-title"
+>
+  <div class="p-6">
+    <h2 id="pwa-help-title" class="mb-3 text-xl font-bold">Add PCC Portal to your home screen</h2>
+    <p class="mb-3 text-sm text-gray-700">
+      Install this portal for quick access from your device's home screen or app list.
+    </p>
+    <ul class="mb-5 list-disc space-y-2 pl-5 text-sm text-gray-700">
+      <li><strong>Android:</strong> Open your browser menu and tap <em>Install app</em> or <em>Add to Home screen</em>.</li>
+      <li><strong>iPhone or iPad:</strong> In Safari, tap <em>Share</em>, then <em>Add to Home Screen</em>.</li>
+      <li><strong>Computer:</strong> Use the install icon in the address bar, if available.</li>
+    </ul>
+    <form method="dialog" class="text-right">
+      <button class="rounded-lg bg-[#0B1747] px-4 py-2 text-sm font-semibold text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#D4AF37]/60">
+        Got it
+      </button>
+    </form>
+  </div>
+</dialog>
+<script src="/js/pwa-install.js" defer></script>

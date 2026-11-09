@@ -75,6 +75,15 @@ Open <http://localhost:3005>. Health check: <http://localhost:3005/healthz>.
 The three portals use separate cookies (`student_*`, `faculty_*`, `staff_*`), so
 logging in on one door never signs out the others.
 
+## Install on a device
+
+Open the portal over HTTPS and tap **Install app**. On Android, the browser may
+show its install prompt or the browser menu's **Install app / Add to Home
+screen** option. On iPhone or iPad, open the portal in Safari, tap **Share**,
+then **Add to Home Screen**. On desktop, use the install icon in the address
+bar when the browser offers it. The installed app still needs an internet
+connection to load portal pages.
+
 ---
 
 ## Scripts
