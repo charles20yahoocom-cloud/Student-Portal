@@ -1,0 +1,56 @@
+# Render config for the PCC Student Portal (Node.js + SQLite).
+#
+# Deploy via the Render Dashboard (Builds → New Web Service):
+#   1. Name: pcc-student-portal
+#   2. Environment: Node
+#   3. Root Directory: (leave as the repo root)
+#   4. Build Command: npm run build
+#   5. Start Command: npm start
+#   6. Add the three secrets below in the Dashboard before deploying.
+
+# The framework template is generic (no framework-specific build needed).
+provider:
+  name: render
+  runtime: node
+  engine: node
+
+# Build step: installs deps and compiles anything the app needs.
+# This project only needs `npm ci` (package-lock.json is committed).
+build:
+  command: npm ci
+
+# Start the Express server. Express 5 and Node 20+ work on Render's Node 20+
+# runtime. PORT is injected by Render.
+start:
+  command: npm start
+
+# Persistent disk: keep SQLite + uploads on a persistent filesystem so data
+# survives restarts. The app's config falls back to ProgramData/PCCPortal/data
+# automatically if DB_PATH/UPLOAD_DIR are not set in production.
+disk:
+  name: pcc-data
+  mountPath: /opt/render/project/pcc-data
+  diskSizeGB: 10
+  nodeAffinity: strict
+
+# Secrets (set these in the Render Dashboard, NOT in the repo):
+#   JWT_ACCESS_SECRET   — random 48-byte hex (or longer)
+#   JWT_REFRESH_SECRET  — random 48-byte hex, different from access
+#   SESSION_SECRET      — random 48-byte hex
+envVars:
+  - key: JWT_ACCESS_SECRET
+    value: change-me-in-dashboard
+  - key: JWT_REFRESH_SECRET
+    value: change-me-in-dashboard
+  - key: SESSION_SECRET
+    value: change-me-in-dashboard
+  - key: NODE_ENV
+    value: production
+  - key: PORT
+    value: 80
+  - key: HOST
+    value: 0.0.0.0
+  - key: TRUST_PROXY
+    value: loopback
+  - key: DB_PATH
+    value: ./src/database/pcc.db
