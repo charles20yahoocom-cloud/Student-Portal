@@ -25,8 +25,7 @@ start:
   command: npm start
 
 # Persistent disk: keep SQLite + uploads on a persistent filesystem so data
-# survives restarts. The app's config falls back to ProgramData/PCCPortal/data
-# automatically if DB_PATH/UPLOAD_DIR are not set in production.
+# survives restarts and deployments.
 disk:
   name: pcc-data
   mountPath: /opt/render/project/pcc-data
@@ -53,4 +52,8 @@ envVars:
   - key: TRUST_PROXY
     value: loopback
   - key: DB_PATH
-    value: ./src/database/pcc.db
+    value: /opt/render/project/pcc-data/pcc.db
+  - key: UPLOAD_DIR
+    value: /opt/render/project/pcc-data/uploads
+  - key: PCC_DATA_DIR
+    value: /opt/render/project/pcc-data

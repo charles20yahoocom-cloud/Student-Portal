@@ -3,6 +3,29 @@
 This guide covers the **LAN demo first** path, with notes for public hosting later.
 Everything runs from the project root unless stated otherwise.
 
+## Render database persistence
+
+Student, instructor, dean, and admin records are stored together in the server's
+SQLite database, not in browser storage. On Render, the database and uploaded
+profile photos must live under the persistent disk mount. Configure the service
+disk to mount at `/opt/render/project/pcc-data` and set:
+
+```text
+PCC_DATA_DIR=/opt/render/project/pcc-data
+DB_PATH=/opt/render/project/pcc-data/pcc.db
+UPLOAD_DIR=/opt/render/project/pcc-data/uploads
+```
+
+The app detects the previous relative `DB_PATH` setting and makes a consistent
+SQLite snapshot onto the persistent disk on startup if the destination database
+does not exist. It refuses to start if the configured Render disk mount is
+missing rather than silently creating another temporary database. Keep the
+persistent disk attached and back up the SQLite file regularly.
+
+If Render has already discarded the old temporary database during a restart or
+deployment, it cannot be recovered from the new empty database; restore a
+backup before directing the service at it.
+
 ## 1. What you need
 
 - Node.js 20 or newer (the app uses `fs.cpSync` and modern SQLite bindings).

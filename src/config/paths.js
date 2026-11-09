@@ -14,6 +14,8 @@ const fs = require('fs');
 const projectRoot = path.join(__dirname, '..', '..');
 const srcDir = path.join(__dirname, '..');
 const isProduction = process.env.NODE_ENV === 'production';
+const isRender = process.env.RENDER === 'true' || Boolean(process.env.RENDER_SERVICE_ID);
+const renderDataDir = process.env.PCC_DATA_DIR || '/opt/render/project/pcc-data';
 
 function defaultInstallDataDir() {
   if (process.platform === 'win32') {
@@ -45,7 +47,19 @@ const legacyDbPath = path.join(srcDir, 'database', 'pcc.db');
 const installDbPath = path.join(defaultInstallDataDir(), 'pcc.db');
 
 let dbPath;
-if (process.env.DB_PATH) {
+let legacyDbPaths = [];
+if (isProduction && isRender) {
+  const configuredDbPath = process.env.DB_PATH;
+  const explicitDbPath = configuredDbPath && path.isAbsolute(configuredDbPath);
+  dbPath = explicitDbPath ? configuredDbPath : path.join(renderDataDir, 'pcc.db');
+
+  if (configuredDbPath) legacyDbPaths.push(resolveFromSrc(configuredDbPath));
+  legacyDbPaths.push(
+    resolveFromSrc('./src/database/pcc.db'),
+    legacyDbPath
+  );
+  legacyDbPaths = [...new Set(legacyDbPaths.filter((candidate) => candidate !== dbPath))];
+} else if (process.env.DB_PATH) {
   dbPath = resolveFromSrc(process.env.DB_PATH);
 } else if (isProduction) {
   // If a production install is upgraded from the old in-project layout, keep
@@ -65,7 +79,18 @@ const legacyUploadsDir = path.join(projectRoot, 'uploads');
 const installUploadsDir = path.join(defaultInstallDataDir(), 'uploads');
 
 let uploadsDir;
-if (process.env.UPLOAD_DIR) {
+let legacyUploadsDirs = [];
+if (isProduction && isRender) {
+  const configuredUploadsDir = process.env.UPLOAD_DIR;
+  const explicitUploadsDir = configuredUploadsDir && path.isAbsolute(configuredUploadsDir);
+  uploadsDir = explicitUploadsDir
+    ? configuredUploadsDir
+    : path.join(renderDataDir, 'uploads');
+
+  if (configuredUploadsDir) legacyUploadsDirs.push(resolveFromProject(configuredUploadsDir));
+  legacyUploadsDirs.push(legacyUploadsDir);
+  legacyUploadsDirs = [...new Set(legacyUploadsDirs.filter((candidate) => candidate !== uploadsDir))];
+} else if (process.env.UPLOAD_DIR) {
   uploadsDir = resolveFromProject(process.env.UPLOAD_DIR);
 } else if (isProduction) {
   const keepLegacy = !hasFiles(installUploadsDir) && hasFiles(legacyUploadsDir);
@@ -81,4 +106,8 @@ module.exports = {
   uploadsDir,
   profileDir: path.join(uploadsDir, 'profiles'),
   defaultInstallDataDir,
+  isRender,
+  legacyDbPaths,
+  legacyUploadsDirs,
+  renderDataDir,
 };
