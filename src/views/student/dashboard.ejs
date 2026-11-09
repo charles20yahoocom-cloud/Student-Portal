@@ -1,0 +1,150 @@
+<%- include('../partials/header', { user: user }) %>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden md:flex md:flex-col md:w-64 md:shrink-0 bg-white shadow-lg">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pcc-blue rounded-full flex items-center justify-center overflow-hidden">
+          <% if (student.profile_picture) { %>
+            <img src="<%= student.profile_picture %>" alt="Profile" class="w-full h-full object-cover">
+          <% } else { %>
+            <span class="text-white font-bold text-lg"><%= student.first_name[0] %><%= student.last_name[0] %></span>
+          <% } %>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800"><%= student.first_name %> <%= student.last_name %></p>
+          <p class="text-xs text-gray-500"><%= student.student_no %></p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-2">
+      <a href="/student/dashboard" class="flex items-center space-x-3 px-4 py-3 bg-pcc-blue/10 text-pcc-blue rounded-lg font-medium">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+        </svg>
+        <span>Dashboard</span>
+      </a>
+      <a href="/student/grades" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+        </svg>
+        <span>My Grades</span>
+      </a>
+      <a href="/student/prospectus" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        <span>My Prospectus</span>
+      </a>
+      <a href="/student/notifications" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition relative">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+        </svg>
+        <span>Notifications</span>
+        <% if (unreadCount > 0) { %>
+          <span class="absolute right-3 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center"><%= unreadCount %></span>
+        <% } %>
+      </a>
+      <a href="/student/profile" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+        </svg>
+        <span>Profile</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 md:p-8 pb-24 md:pb-8">
+    <!-- Welcome Banner -->
+    <div class="hero">
+      <h1 class="text-2xl font-bold">Welcome, <%= student.first_name %>!</h1>
+      <p class="mt-2 opacity-90"><%= student.program_code %> | Year <%= student.year_level %></p>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="panel p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-gray-500 text-sm">Program</p>
+            <p class="text-2xl font-bold text-gray-800"><%= student.program_code %></p>
+          </div>
+          <div class="w-12 h-12 bg-pcc-blue/10 rounded-full flex items-center justify-center">
+            <svg class="w-6 h-6 text-pcc-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-gray-500 text-sm">Year Level</p>
+            <p class="text-2xl font-bold text-gray-800">Year <%= student.year_level %></p>
+          </div>
+          <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-gray-500 text-sm">Status</p>
+            <p class="text-2xl font-bold text-green-600 capitalize"><%= student.status %></p>
+          </div>
+          <div class="w-12 h-12 bg-pcc-gold/20 rounded-full flex items-center justify-center">
+            <svg class="w-6 h-6 text-pcc-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Notifications -->
+    <div class="panel">
+      <div class="p-6 border-b">
+        <h2 class="text-lg font-semibold text-gray-800">Recent Notifications</h2>
+      </div>
+      <div class="p-6">
+        <% if (notifications && notifications.length > 0) { %>
+          <div class="space-y-4">
+            <% notifications.forEach(notif => { %>
+              <div class="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg <%= !notif.read_at ? 'border-l-4 border-pcc-blue' : '' %>">
+                <div class="w-10 h-10 bg-pcc-blue/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg class="w-5 h-5 text-pcc-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <p class="font-medium text-gray-800"><%= notif.title %></p>
+                  <p class="text-sm text-gray-600 mt-1"><%= notif.message %></p>
+                  <p class="text-xs text-gray-400 mt-2"><%= new Date(notif.created_at).toLocaleDateString() %></p>
+                </div>
+              </div>
+            <% }); %>
+          </div>
+        <% } else { %>
+          <div class="text-center py-8 text-gray-500">
+            <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+            </svg>
+            <p>No notifications yet</p>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/student-mobile-nav', { active: 'dashboard', unreadCount: unreadCount }) %>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,119 @@
+<%- include('../partials/header', { user: user }) %>
+  <%- include('../partials/staff-topnav', { active: 'subjects', links: [['/faculty/dashboard','Dashboard'],['/faculty/subjects','My Subjects'],['/faculty/grade-entry','Grade Entry']] }) %>
+
+<div class="flex min-h-screen">
+  <%- include('../partials/faculty-sidebar', { active: 'subjects', user: user }) %>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+    <div class="hero">
+      <h1 class="text-2xl font-bold">My Subjects</h1>
+      <p class="mt-2 opacity-90">
+        <%= activeSemester
+          ? 'Subjects and sections you handle — ' + activeSemester.name + ' ' + activeSemester.school_year
+          : 'No active semester' %>
+      </p>
+    </div>
+
+    <%
+      const grouped = {};
+      offerings.forEach(o => {
+        if (!grouped[o.course_code]) grouped[o.course_code] = { code: o.course_code, name: o.course_name, credits: o.credits, sections: [] };
+        grouped[o.course_code].sections.push(o);
+      });
+      const subjectList = Object.values(grouped);
+      const totalSections = offerings.length;
+      const totalStudents = offerings.reduce((sum, o) => sum + o.enrolled_count, 0);
+      const totalUnits = offerings.reduce((sum, o) => sum + (o.credits || 0), 0);
+    %>
+
+    <% if (subjectList.length > 0) { %>
+      <!-- Summary -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-8">
+        <div class="panel p-5">
+          <p class="text-gray-500 text-sm">Subjects</p>
+          <p class="text-3xl font-bold text-royal-900 mt-1"><%= subjectList.length %></p>
+        </div>
+        <div class="panel p-5">
+          <p class="text-gray-500 text-sm">Sections</p>
+          <p class="text-3xl font-bold text-royal-900 mt-1"><%= totalSections %></p>
+        </div>
+        <div class="panel p-5">
+          <p class="text-gray-500 text-sm">Students</p>
+          <p class="text-3xl font-bold text-royal-900 mt-1"><%= totalStudents %></p>
+        </div>
+        <div class="panel p-5">
+          <p class="text-gray-500 text-sm">Teaching Load</p>
+          <p class="text-3xl font-bold text-royal-900 mt-1"><%= totalUnits %> <span class="text-base font-medium text-gray-400">units</span></p>
+        </div>
+      </div>
+
+      <!-- Subjects -->
+      <div class="space-y-6">
+        <% subjectList.forEach(subject => { %>
+          <div class="panel">
+            <div class="p-6 border-b flex items-start justify-between gap-4">
+              <div>
+                <div class="flex items-center gap-3">
+                  <h3 class="font-display text-xl font-bold text-royal-900"><%= subject.code %></h3>
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pcc-blue/10 text-pcc-blue">
+                    <%= subject.credits %> units
+                  </span>
+                </div>
+                <p class="text-sm text-gray-500 mt-1"><%= subject.name %></p>
+              </div>
+              <span class="shrink-0 px-3 py-1 rounded-full text-sm font-medium bg-gold-500/15 text-gold-700 border border-gold-500/30">
+                <%= subject.sections.length %> section<%= subject.sections.length > 1 ? 's' : '' %>
+              </span>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Section</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Students</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Graded</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                  <% subject.sections.forEach(o => { %>
+                    <tr>
+                      <td class="px-6 py-4">
+                        <span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700">Sec. <%= o.section %></span>
+                      </td>
+                      <td class="px-6 py-4 text-gray-600"><%= o.enrolled_count %></td>
+                      <td class="px-6 py-4 text-gray-600"><%= o.graded_count %>/<%= o.enrolled_count %></td>
+                      <td class="px-6 py-4">
+                        <% if (o.enrolled_count > 0 && o.graded_count >= o.enrolled_count) { %>
+                          <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Graded</span>
+                        <% } else { %>
+                          <span class="px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">Pending</span>
+                        <% } %>
+                      </td>
+                      <td class="px-6 py-4 text-right">
+                        <a href="/faculty/grade-entry/<%= o.id %>" class="text-pcc-blue hover:underline text-sm font-medium whitespace-nowrap">Encode grades →</a>
+                      </td>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } else { %>
+      <div class="panel p-12 text-center">
+        <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+        </svg>
+        <h3 class="text-lg font-medium text-gray-800 mb-2">No Subjects Assigned</h3>
+        <p class="text-gray-500">You don't have any subjects assigned for this semester. Contact the Dean if this seems wrong.</p>
+      </div>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

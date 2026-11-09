@@ -1,0 +1,139 @@
+<%- include('../partials/header', { user: user }) %>
+  <%- include('../partials/staff-topnav', { active: 'year-levels', links: [['/dean/dashboard','Dashboard'],['/dean/year-levels','Year Levels'],['/dean/grade-entry','Grade Entry'],['/dean/assignments','Assignments'],['/dean/accounts','Accounts'],['/dean/reports','Reports'],['/profile','Profile']] }) %>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 bg-white shadow-lg">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pcc-blue rounded-full flex items-center justify-center">
+          <span class="text-white font-bold text-lg">D</span>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800"><%= user.fullName %></p>
+          <p class="text-xs text-gray-500 capitalize"><%= user.role %></p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-2">
+      <a href="/dean/dashboard" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+        </svg>
+        <span>Dashboard</span>
+      </a>
+      <a href="/dean/year-levels" class="flex items-center space-x-3 px-4 py-3 bg-pcc-blue/10 text-pcc-blue rounded-lg font-medium">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+        </svg>
+        <span>Year Levels</span>
+      </a>
+      <a href="/dean/grade-entry" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+        </svg>
+        <span>Grade Entry</span>
+      </a>
+      <a href="/dean/assignments" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+        </svg>
+        <span>Assignments</span>
+      </a>
+      <a href="/dean/accounts" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+        </svg>
+        <span>Accounts</span>
+      </a>
+      <a href="/dean/reports" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+        </svg>
+        <span>Reports</span>
+      </a>
+      <a href="/profile" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+        </svg>
+        <span>Profile</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+    <div class="hero">
+      <h1 class="text-2xl font-bold">Year Levels</h1>
+      <p class="mt-2 opacity-90">Browse every year level &mdash; required subjects for each year and their sections</p>
+    </div>
+
+    <% if (yearStats.every(y => y.student_count === 0 && y.section_count === 0)) { %>
+      <div class="panel p-10 text-center text-gray-400 mt-6">
+        <p class="text-5xl font-display">1&ndash;4</p>
+        <p class="mt-2">No students recorded yet. Add students to see sections per year level.</p>
+      </div>
+    <% } else { %>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <% yearStats.forEach(y => { %>
+          <a href="/dean/year-levels/<%= y.year %>" class="panel p-6 hover:shadow-xl transition group">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-500">Year Level</p>
+                <p class="font-display text-3xl font-bold text-royal-900 mt-1">Year <%= y.year %></p>
+              </div>
+              <span class="text-4xl font-display text-gold-500/70 group-hover:text-gold-500 transition"><%= y.year %></span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mt-4">
+              <div class="rounded-lg px-3 py-2 text-center" style="background: rgba(30,66,159,.06);">
+                <p class="text-lg font-bold text-royal-900"><%= y.student_count %></p>
+                <p class="text-xs text-gray-500">Students</p>
+              </div>
+              <div class="rounded-lg px-3 py-2 text-center" style="background: rgba(212,175,55,.08);">
+                <p class="text-lg font-bold text-royal-900"><%= y.section_count %></p>
+                <p class="text-xs text-gray-500">Sections</p>
+              </div>
+            </div>
+            <p class="text-sm text-pcc-blue mt-4 group-hover:underline">View year &rarr;</p>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+
+    <% if (programs.length === 0) { %>
+      <div class="panel p-10 text-center text-gray-400 mt-6">
+        <p>No curriculum templates have been uploaded yet.</p>
+        <p class="text-sm mt-1">Subjects required per year will appear here once a curriculum is available.</p>
+      </div>
+    <% } else { %>
+      <% programs.forEach(p => { %>
+        <div class="panel p-6 mb-8">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 class="font-display text-lg font-bold text-royal-900"><%= p.program_code %></h2>
+              <p class="text-sm text-gray-500"><%= p.program_name %></p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            <% p.years.forEach(y => { %>
+              <a href="/dean/year-levels/<%= y.year %>?program=<%= encodeURIComponent(p.program_code) %>"
+                 class="rounded-xl border p-4 transition hover:border-gold-500">
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Year <%= y.year %></p>
+                <p class="text-2xl font-bold text-royal-900 mt-1"><%= y.subjects %></p>
+                <p class="text-xs text-gray-500">subjects</p>
+                <div class="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                  <div class="h-full rounded-full" style="width:<%= Math.min(100, Math.round((y.subjects / 17) * 100)) %>%; background: linear-gradient(90deg,#2A5BD7,#D4AF37);"></div>
+                </div>
+                <p class="mt-2 text-sm text-gray-600"><strong><%= y.units %></strong> units</p>
+              </a>
+            <% }) %>
+          </div>
+        </div>
+      <% }) %>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

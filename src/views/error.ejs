@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="/css/fonts.css" rel="stylesheet">
+  <script src="/js/tailwind.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'pcc-blue': '#1E429F',
+            'pcc-blue-dark': '#16307F',
+            'pcc-gold': '#D4AF37',
+            'royal-950': '#070E2E',
+            'royal-900': '#0B1747',
+            'royal-800': '#10215F',
+            'gold-400': '#EFD27A',
+            'gold-500': '#D4AF37',
+            'gold-600': '#B8912B',
+          },
+          fontFamily: {
+            sans: ['Inter', "'Segoe UI'", 'system-ui', 'sans-serif'],
+            display: ['"Playfair Display"', 'Georgia', 'serif'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4"
+      style="background: radial-gradient(900px 520px at 88% -14%, rgba(212,175,55,.16), transparent 60%), linear-gradient(135deg, #10215F 0%, #0B1747 55%, #070E2E 100%);">
+  <div class="relative w-full max-w-md rounded-2xl text-center p-8 overflow-hidden"
+       style="background: linear-gradient(180deg,#ffffff,#fdfdff); box-shadow: 0 30px 60px -28px rgba(7,14,46,.8);">
+    <div class="absolute inset-x-0 top-0 h-[3px]" style="background: linear-gradient(90deg, transparent, #D4AF37, transparent);"></div>
+    <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"
+         style="background: radial-gradient(circle at 30% 25%, #FBEBB0 0%, #EFD27A 40%, #D4AF37 100%); box-shadow: 0 0 0 4px rgba(212,175,55,.25);">
+      <svg class="w-10 h-10" style="color:#8C6D1F;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+      </svg>
+    </div>
+    <h1 class="font-display text-2xl font-bold mb-2" style="color:#0B1747;"><%= title %></h1>
+    <p class="text-gray-600 mb-7"><%= message %></p>
+    <a href="/" class="inline-block text-white font-semibold px-6 py-3 rounded-xl transition"
+       style="background: linear-gradient(135deg,#2A5BD7,#16307F); border:1px solid rgba(212,175,55,.4); box-shadow: 0 12px 24px -12px rgba(22,48,127,.8);">
+      Go Home
+    </a>
+  </div>
+</body>
+</html>

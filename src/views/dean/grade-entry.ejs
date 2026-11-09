@@ -1,0 +1,76 @@
+<%- include('../partials/header', { user: user }) %>
+  <%- include('../partials/staff-topnav', { active: 'grade-entry', links: [['/dean/dashboard','Dashboard'],['/dean/grade-entry','Grade Entry'],['/dean/assignments','Assignments'],['/dean/accounts','Accounts'],['/dean/reports','Reports']] }) %>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 bg-white shadow-lg">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pcc-blue rounded-full flex items-center justify-center">
+          <span class="text-white font-bold text-lg">D</span>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800"><%= user.fullName %></p>
+          <p class="text-xs text-gray-500 capitalize"><%= user.role %></p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-2">
+      <a href="/dean/dashboard" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Dashboard</span></a>
+      <a href="/dean/grade-entry" class="flex items-center space-x-3 px-4 py-3 bg-pcc-blue/10 text-pcc-blue rounded-lg font-medium"><span>Grade Entry</span></a>
+      <a href="/dean/assignments" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Assignments</span></a>
+      <a href="/dean/accounts" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Accounts</span></a>
+      <a href="/dean/reports" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Reports</span></a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">Grade Entry</h1>
+      <p class="text-gray-600 mt-1">
+        <%= activeSemester ? 'Select a course section to enter grades for ' + activeSemester.school_year : 'No active semester' %>
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <% if (offerings.length > 0) { %>
+        <% offerings.forEach(offering => { %>
+          <a href="/dean/grade-entry/<%= offering.id %>" class="panel panel-hover p-6 group">
+            <div class="flex items-start justify-between mb-4">
+              <div>
+                <h3 class="font-semibold text-gray-800"><%= offering.course_code %></h3>
+                <p class="text-sm text-gray-500 mt-1"><%= offering.course_name %></p>
+              </div>
+              <span class="px-3 py-1 rounded-full text-sm font-medium bg-pcc-blue/10 text-pcc-blue">
+                Sec. <%= offering.section %>
+              </span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-gray-600 text-sm">
+                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                <%= offering.enrolled_count %> students
+              </span>
+              <span class="text-pcc-blue group-hover:translate-x-1 transition inline-flex items-center">
+                Encode →
+              </span>
+            </div>
+          </a>
+        <% }); %>
+      <% } else { %>
+        <div class="col-span-full panel p-12 text-center">
+          <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+          </svg>
+          <h3 class="text-lg font-medium text-gray-800 mb-2">No Course Offerings</h3>
+          <p class="text-gray-500">Set up course offerings for the active semester to begin grade entry.</p>
+        </div>
+      <% } %>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

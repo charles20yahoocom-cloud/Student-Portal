@@ -1,0 +1,455 @@
+<% const portalMode = (typeof portal !== 'undefined' && portal) ? portal : 'student'; %>
+<% const portalTitles = { student: 'Student Portal', staff: 'Faculty Portal', instructor: 'Faculty Portal', dean: 'Dean / Admin Portal' }; %>
+<% const defaultRoles = { student: 'student', staff: 'faculty', instructor: 'faculty', dean: 'admin' }; %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="/css/fonts.css" rel="stylesheet">
+  <script src="/js/tailwind.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'pcc-blue': '#1E429F',
+            'pcc-blue-dark': '#16307F',
+            'pcc-gold': '#D4AF37',
+            'pcc-ink': '#070E2E',
+            'royal-900': '#0B1747',
+            'royal-800': '#10215F',
+            'gold-300': '#F7E7A6',
+            'gold-400': '#EFD27A',
+            'gold-500': '#D4AF37',
+            'gold-600': '#B8912B',
+          },
+          fontFamily: {
+            sans: ['Inter', "'Segoe UI'", 'system-ui', 'sans-serif'],
+            display: ['"Playfair Display"', 'Georgia', 'serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Keep iOS Safari from auto-zooming on input focus */
+    @media (max-width: 640px) {
+      input, select, textarea { font-size: 16px !important; }
+    }
+    .bg-grid {
+      background-image:
+        linear-gradient(rgba(30, 66, 159, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30, 66, 159, 0.08) 1px, transparent 1px);
+      background-size: 42px 42px;
+      animation: gridScroll 18s linear infinite;
+    }
+    @keyframes gridScroll {
+      from { background-position: 0 0; }
+      to   { background-position: 0 42px; }
+    }
+    .orb {
+      position: absolute;
+      border-radius: 9999px;
+      filter: blur(70px);
+      opacity: 0.45;
+    }
+    .orb-a { animation: floatA 14s ease-in-out infinite; }
+    .orb-b { animation: floatB 18s ease-in-out infinite; }
+    .orb-c { animation: floatC 16s ease-in-out infinite; }
+    @keyframes floatA { 0%,100% { transform: translate(0,0); } 50% { transform: translate(60px, -40px); } }
+    @keyframes floatB { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-70px, 50px); } }
+    @keyframes floatC { 0%,100% { transform: translate(0,0); } 50% { transform: translate(40px, 60px); } }
+
+    .card-holder {
+      position: absolute;
+      transform-style: preserve-3d;
+      will-change: transform;
+      opacity: 0;
+    }
+    .banner-card {
+      transform-style: preserve-3d;
+      will-change: transform;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Card entrance is pure CSS so the login form is always usable even if the CDN/Motion script fails to load */
+    .card-in { animation: cardIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both; }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(26px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(16px) saturate(1.15);
+      -webkit-backdrop-filter: blur(16px) saturate(1.15);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .orb, .bg-grid { animation: none; }
+      .card-in { animation: none; }
+    }
+  </style>
+</head>
+<body class="bg-pcc-ink min-h-screen flex p-4 relative overflow-x-hidden overflow-y-auto">
+
+  <!-- Cinematic background -->
+  <div class="fixed inset-0 bg-grid pointer-events-none"></div>
+  <div class="fixed inset-0 pointer-events-none">
+    <div class="orb orb-a w-[520px] h-[520px] bg-pcc-blue/50 -top-24 -left-24"></div>
+    <div class="orb orb-b w-[460px] h-[460px] bg-pcc-gold/20 top-1/3 -right-32"></div>
+    <div class="orb orb-c w-[400px] h-[400px] bg-pcc-blue-dark/50 bottom-0 left-1/3"></div>
+  </div>
+  <div class="fixed inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(7,11,23,0.72)_100%)] pointer-events-none"></div>
+
+  <!-- 3D arc banner gallery (filled by JS) -->
+  <div id="stage" class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div id="arcGroup" class="absolute inset-0 will-change-transform"></div>
+  </div>
+
+  <!-- Login box -->
+  <div class="relative z-10 w-full max-w-[352px] m-auto py-4">
+    <div id="loginCard" class="card-in glass w-full rounded-2xl shadow-2xl border border-white/50 p-5">
+
+      <!-- College seal + title -->
+      <div class="flex items-center gap-3 mb-4">
+        <img src="/images/pcc-logo.jpg" alt="Passi City College logo"
+             class="shrink-0 w-11 h-11 rounded-full object-cover ring-4 ring-gold-500/40 shadow-lg">
+        <div class="min-w-0">
+          <h1 id="portalTitle" class="font-display text-lg font-bold text-royal-900 tracking-tight leading-tight"><%= portalTitles[portalMode] || 'Student Portal' %></h1>
+          <p class="text-[11px] text-gray-500 truncate leading-snug">Passi City College &middot; Passi City, Iloilo</p>
+        </div>
+      </div>
+
+      <% if (typeof success !== 'undefined' && success) { %>
+        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 text-sm">
+          <%= success %>
+        </div>
+      <% } %>
+
+      <% if (typeof error !== 'undefined' && error) { %>
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+          <%= error %>
+        </div>
+      <% } %>
+      <% if (typeof notice !== 'undefined' && notice) { %>
+        <div class="bg-blue-50 border border-blue-200 text-pcc-blue px-4 py-3 rounded-lg mb-4 text-sm">
+          <%= notice %>
+        </div>
+      <% } %>
+
+      <!-- Role tabs (only on the /staff entrance — /login is students-only) -->
+      <% if (portalMode === 'staff') { %>
+      <div class="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1 mb-3.5">
+        <button type="button" data-tab="faculty" onclick="setRole('faculty')"
+          class="role-tab px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition border">
+          Teachers
+        </button>
+        <button type="button" data-tab="admin" onclick="setRole('admin')"
+          class="role-tab px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition border">
+          Dean / Admin
+        </button>
+      </div>
+      <% } %>
+
+      <!-- Login form -->
+      <form action="/login" method="POST" class="space-y-3.5">
+        <input type="hidden" name="portal" value="<%= portalMode %>">
+        <div>
+          <label class="block text-[13px] font-medium text-gray-700 mb-1.5" id="emailLabel">Student Email</label>
+          <input 
+            type="email" 
+            name="email" 
+            required
+            id="emailInput"
+            placeholder="student.email@pcc.edu.ph"
+            class="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pcc-blue focus:border-transparent outline-none transition text-sm"
+          >
+        </div>
+
+        <div>
+          <label class="block text-[13px] font-medium text-gray-700 mb-1.5" id="passwordLabel">Password</label>
+          <div class="relative">
+            <input 
+              type="password" 
+              name="password" 
+              id="passwordInput"
+              required
+              placeholder="Enter your password"
+              class="w-full px-3.5 py-2 pr-11 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pcc-blue focus:border-transparent outline-none transition text-sm"
+            >
+            <button
+              type="button"
+              id="togglePassword"
+              aria-label="Show password"
+              aria-pressed="false"
+              title="Show password"
+              class="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-400 transition hover:text-pcc-blue focus:outline-none focus-visible:text-pcc-blue"
+            >
+              <svg id="eyeIcon" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+              <svg id="eyeOffIcon" class="hidden h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+              </svg>
+            </button>
+          </div>
+          <div class="text-right mt-1.5">
+            <a href="/forgot-password" class="text-xs text-pcc-blue hover:underline">Forgot password?</a>
+          </div>
+        </div>
+
+        <button 
+          type="submit"
+          id="signInButton"
+          class="w-full bg-gradient-to-r from-pcc-blue-dark via-pcc-blue to-pcc-blue-dark hover:from-pcc-blue-dark hover:via-pcc-blue hover:to-pcc-gold/80 text-white font-semibold py-2 rounded-lg shadow-lg hover:shadow-pcc-blue/40 transition duration-200"
+        >
+          <span id="submitLabel">Sign In as Student</span>
+        </button>
+      </form>
+
+      <!-- New Student card -->
+      <div class="mt-4 rounded-xl border border-pcc-blue/25 bg-gradient-to-br from-pcc-blue/[0.09] to-pcc-blue/[0.02] p-3.5 shadow-sm ring-1 ring-pcc-gold/30" id="newStudentBox">
+        <p class="text-[13px] font-semibold text-gray-800 leading-tight">New student at PCC?</p>
+        <p class="text-xs text-gray-500 mt-1 leading-snug">Create an account to track your grades and prospectus.</p>
+        <a href="/register"
+          class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-pcc-blue/50 bg-white/90 py-2 text-[13px] font-semibold text-pcc-blue shadow-sm transition hover:border-pcc-blue hover:bg-pcc-blue hover:text-white hover:shadow-pcc-blue/30">
+          Register as a New Student
+          <span aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
+
+      <!-- Tech status footer -->
+      <div class="mt-3 pt-2.5 border-t border-gray-200 flex items-center justify-between font-mono text-[10px] text-gray-400 uppercase tracking-[0.15em]">
+        <span><span class="text-green-500">&#9679;</span> Secure &middot; 2FA</span>
+        <span id="utcClock">--:--:--</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const roleMeta = {
+      student: { title: 'Student Portal', emailLabel: 'Student Email', emailPlaceholder: 'student.email@pcc.edu.ph', submit: 'Sign In as Student', showNew: true },
+      faculty: { title: 'Faculty Portal', emailLabel: 'Teacher Email', emailPlaceholder: 'teacher.email@pcc.edu.ph', submit: 'Sign In as Teacher', showNew: false },
+      admin: { title: 'Dean / Admin Portal', emailLabel: 'Work Email', emailPlaceholder: 'work.email@pcc.edu.ph', submit: 'Sign In as Dean / Admin', showNew: false }
+    };
+
+    const tabs = document.querySelectorAll('.role-tab');
+
+    function styleTabs() {
+      tabs.forEach(b => {
+        const active = b.dataset.tab === (window.__role || 'student');
+        b.classList.toggle('bg-pcc-blue', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('border-pcc-blue', active);
+        b.classList.toggle('shadow-md', active);
+        b.classList.toggle('bg-white', !active);
+        b.classList.toggle('text-gray-600', !active);
+        b.classList.toggle('border-gray-200', !active);
+        b.classList.toggle('hover:text-pcc-blue', !active);
+      });
+    }
+
+    function applyRole(role) {
+      const meta = roleMeta[role];
+      document.getElementById('portalTitle').textContent = meta.title;
+      document.getElementById('emailLabel').textContent = meta.emailLabel;
+      document.getElementById('emailInput').placeholder = meta.emailPlaceholder;
+      document.getElementById('submitLabel').textContent = meta.submit;
+      document.getElementById('newStudentBox').style.display = meta.showNew ? '' : 'none';
+      window.__role = role;
+      styleTabs();
+    }
+
+    function setRole(role) { applyRole(role); }
+
+    applyRole('<%= defaultRoles[portalMode] || "student" %>');
+
+    // Show / hide password
+    const passwordInput = document.getElementById('passwordInput');
+    const togglePassword = document.getElementById('togglePassword');
+    if (passwordInput && togglePassword) {
+      togglePassword.addEventListener('click', () => {
+        const show = passwordInput.type === 'password';
+        passwordInput.type = show ? 'text' : 'password';
+        togglePassword.setAttribute('aria-pressed', String(show));
+        togglePassword.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        togglePassword.setAttribute('title', show ? 'Hide password' : 'Show password');
+        document.getElementById('eyeIcon').classList.toggle('hidden', show);
+        document.getElementById('eyeOffIcon').classList.toggle('hidden', !show);
+      });
+    }
+
+    setInterval(() => {
+      const el = document.getElementById('utcClock');
+      if (el) el.textContent = new Date().toLocaleTimeString('en-PH', { hour12: false });
+    }, 500);
+  </script>
+
+  <script type="module">
+    import { animate } from "/js/motion-lite.js";
+
+    const programs = [
+      { code: 'BSIT', name: 'Infotech', grad: 'linear-gradient(135deg,#3B82F6,#1D4ED8 60%,#172554)', icon: '&#x1F5A5;', accent: '#93C5FD' },
+      { code: 'BSCRIM', name: 'Criminology', grad: 'linear-gradient(135deg,#8B5CF6,#6D28D9 60%,#312E81)', icon: '&#x1F4BB;', accent: '#C4B5FD' },
+      { code: 'BSBA', name: 'Business', grad: 'linear-gradient(135deg,#F59E0B,#D97706 60%,#7C2D12)', icon: '&#x1F4BC;', accent: '#FCD34D' },
+      { code: 'BSED', name: 'Education', grad: 'linear-gradient(135deg,#10B981,#059669 60%,#064E3B)', icon: '&#x1F4DA;', accent: '#6EE7B7' },
+      { code: 'BSHM', name: 'Hospitality', grad: 'linear-gradient(135deg,#F43F5E,#E11D48 60%,#881337)', icon: '&#x1F37D;', accent: '#FDA4AF' },
+    ];
+
+    const stage = document.getElementById('stage');
+    const group = document.getElementById('arcGroup');
+    const loginCard = document.getElementById('loginCard');
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const small = window.matchMedia('(max-width: 640px)').matches;
+    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const targetOpacity = 0.95;
+
+    // U-curve geometry (recomputed on resize)
+    let geo = {};
+    function recomputeGeo() {
+      const vw = stage.clientWidth;
+      const vh = stage.clientHeight;
+      const D = small ? Math.min(88, vw * 0.14) : Math.min(128, vw * 0.11);
+      const cx = vw / 2;
+      const cy = vh * 0.52;
+      // Keep the whole arc comfortably inside the viewport
+      const maxRx = Math.max(0, cx - D / 2 - 14);
+      const maxRy = Math.max(0, cy - 42 - D / 2);
+      geo = {
+        D,
+        cx,
+        cy,
+        Rx: Math.min(vw * 0.5, maxRx),
+        Ry: Math.min(vw * 0.26, maxRy)
+      };
+    }
+
+    function buildCard(p) {
+      const el = document.createElement('div');
+      el.className = 'banner-card flex items-center justify-center rounded-full text-center overflow-hidden shadow-2xl ring-1 ring-white/30';
+      el.style.position = 'absolute';
+      el.style.background = p.grad;
+      el.style.borderRadius = '50%';
+      el.style.width = geo.D + 'px';
+      el.style.height = geo.D + 'px';
+      el.innerHTML = `
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-white/15"></div>
+        <div class="absolute -top-1/4 left-1/4 w-1/2 h-1/2 rounded-full bg-white/25 blur-xl"></div>
+        <div class="absolute inset-0 rounded-full ring-2 ring-inset ring-white/25"></div>
+        <div class="relative flex flex-col items-center justify-center px-2">
+          <span style="font-size:clamp(12px,2.2vw,17px); color:${p.accent}">${p.icon}</span>
+          <span class="text-white font-extrabold tracking-tight" style="font-size:clamp(12px,2.6vw,19px)">${p.code}</span>
+          <span class="text-white/80 uppercase" style="font-size:clamp(6px,1.1vw,8px); letter-spacing:0.12em">${p.name}</span>
+        </div>
+      `;
+      return el;
+    }
+
+    const cards = [];
+    recomputeGeo();
+    programs.forEach(p => {
+      const c = buildCard(p);
+      c.style.opacity = 0;
+      c.style.willChange = 'transform';
+      group.appendChild(c);
+      cards.push(c);
+    });
+
+    window.addEventListener('resize', () => {
+      recomputeGeo();
+      cards.forEach(c => {
+        c.style.width = geo.D + 'px';
+        c.style.height = geo.D + 'px';
+      });
+    });
+
+    // 3 banners on the LEFT of the login box, 2 on the RIGHT — all kept clear of the box
+    function buildTargets() {
+      const { D, cx, cy } = geo;
+      const vw = stage.clientWidth;
+      const vh = stage.clientHeight;
+
+      // Phones: the card is nearly full-width, so put 3 across the top and 2 at the bottom
+      if (small) {
+        const topY = 8;
+        const botY = vh - D - 8;
+        return [
+          { x: vw * 0.5 - D / 2, y: topY, s: 1, r: 0, z: 5 },
+          { x: vw * 0.05, y: topY, s: 0.9, r: -7, z: 4 },
+          { x: vw * 0.95 - D, y: topY, s: 0.9, r: 7, z: 4 },
+          { x: vw * 0.2, y: botY, s: 0.85, r: -6, z: 4 },
+          { x: vw * 0.8 - D, y: botY, s: 0.85, r: 6, z: 4 }
+        ];
+      }
+
+      const card = document.getElementById('loginCard');
+      const boxHalf = (card && card.offsetWidth ? card.offsetWidth : Math.min(384, vw)) / 2;
+      const arm = boxHalf + D * 0.55 + 18; // min distance from viewport center a banner may sit
+      const clampX = x => Math.max(-D * 0.3, Math.min(vw - D * 0.7, x));
+      const clampY = y => Math.max(26, Math.min(vh - 26 - D, y));
+      const rows = [
+        // left side: 3 (lower / mid / upper) — all beyond the box's left edge
+        { s: 0.78, k: 1.58, dy: 136, r: 11, z: 3 },
+        { s: 0.95, k: 1.32, dy: -10, r: 6, z: 6 },
+        { s: 0.9, k: 1.12, dy: -140, r: 13, z: 4 },
+        // right side: 2 (upper / lower)
+        { s: 0.95, k: 1.32, dy: -100, r: -9, z: 5 },
+        { s: 0.78, k: 1.58, dy: 118, r: -15, z: 4 }
+      ];
+      const side = ['L', 'L', 'L', 'R', 'R'];
+      return rows.map((p, i) => ({
+        x: clampX(side[i] === 'L'
+          ? cx - p.k * arm - D / 2
+          : cx + p.k * arm - D / 2),
+        y: clampY(cy + p.dy - D / 2),
+        s: p.s,
+        r: p.r,
+        z: p.z
+      }));
+    }
+
+    const targets = buildTargets();
+
+    if (reduced) {
+      // Static U-curve, no entrance
+      cards.forEach((c, i) => {
+        const t = targets[i];
+        c.style.transform = `translate3d(${t.x}px,${t.y}px,0) rotate(${t.r}deg) scale(${t.s})`;
+        c.style.opacity = targetOpacity;
+        c.style.zIndex = t.z;
+      });
+    } else {
+      // One-shot entrance from bottom-left, then the banners just hover in place
+      const S = {
+        x: geo.cx - geo.Rx * 1.45 - geo.D / 2,
+        y: geo.cy + geo.Ry * 2.6 - geo.D / 2
+      };
+      cards.forEach((c, i) => {
+        const t = targets[i];
+        c.style.zIndex = t.z;
+        animate(c, {
+          x: [S.x, t.x],
+          y: [S.y, t.y],
+          rotate: [-42, t.r],
+          scale: [0.3, t.s],
+          opacity: [0, targetOpacity]
+        }, { duration: 1.05, delay: 0.05 + i * 0.09, ease: [0.22, 1, 0.36, 1] });
+      });
+    }
+
+    // Tab micro-pulse
+    document.querySelectorAll('.role-tab').forEach(t => {
+      t.addEventListener('click', () => {
+        animate('#signInButton', { scale: [1, 0.97, 1] }, { duration: 0.25, ease: 'easeInOut' });
+        animate('#portalTitle', { opacity: [1, 0], scale: [1, 0.96] }, { duration: 0.12, ease: 'easeIn' })
+          .finished.then(() => animate('#portalTitle', { opacity: [0, 1], scale: [0.96, 1] }, { duration: 0.18, ease: 'circOut' }));
+      });
+    });
+  </script>
+</body>
+</html>

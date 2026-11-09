@@ -1,0 +1,228 @@
+<%- include('../partials/header', { user: user }) %>
+  <%- include('../partials/staff-topnav', { active: 'grade-entry', links: [['/dean/dashboard','Dashboard'],['/dean/grade-entry','Grade Entry'],['/dean/assignments','Assignments'],['/dean/accounts','Accounts'],['/dean/reports','Reports']] }) %>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 bg-white shadow-lg">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pcc-blue rounded-full flex items-center justify-center">
+          <span class="text-white font-bold text-lg">D</span>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800"><%= user.fullName %></p>
+          <p class="text-xs text-gray-500 capitalize"><%= user.role %></p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-2">
+      <a href="/dean/dashboard" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Dashboard</span></a>
+      <a href="/dean/grade-entry" class="flex items-center space-x-3 px-4 py-3 bg-pcc-blue/10 text-pcc-blue rounded-lg font-medium"><span>Grade Entry</span></a>
+      <a href="/dean/assignments" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Assignments</span></a>
+      <a href="/dean/accounts" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Accounts</span></a>
+      <a href="/dean/reports" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Reports</span></a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+    <!-- Back button -->
+    <a href="/dean/grade-entry" class="inline-flex items-center text-pcc-blue hover:text-pcc-blue-dark mb-4">
+      ← Back to Course Sections
+    </a>
+
+    <!-- Class Header -->
+    <div class="panel mb-6 p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-bold text-gray-800"><%= offering.course_code %> - <%= offering.course_name %></h1>
+          <p class="text-gray-500 mt-1">
+            Section <%= offering.section %> | <%= students.length %> students | 
+            <%= activeSemester ? activeSemester.name + ' ' + activeSemester.school_year : '' %>
+          </p>
+          <p class="text-xs text-gray-400 mt-1">
+            Philippine grading: <span class="font-medium">1.00</span> (100) &middot;
+            <span class="font-medium">3.00</span> (75, passing) &middot;
+            <span class="font-medium text-red-500">5.00</span> (failure) &middot; quarter steps only
+          </p>
+        </div>
+        <div class="flex items-center space-x-3">
+          <span id="gradedCount" class="text-sm text-gray-600"><%= students.filter(s => s.grade_value).length %>/<%= students.length %> graded</span>
+          <button onclick="fillAllGrades()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition">
+            Set all to:
+            <select id="defaultGrade" class="bg-transparent outline-none" onchange="fillAllGrades()">
+              <option value="">--</option>
+              <option value="1.00">1.00</option>
+              <option value="1.25">1.25</option>
+              <option value="1.50">1.50</option>
+              <option value="1.75">1.75</option>
+              <option value="2.00">2.00</option>
+              <option value="2.25">2.25</option>
+              <option value="2.50">2.50</option>
+              <option value="2.75">2.75</option>
+              <option value="3.00">3.00</option>
+              <option value="3.25">3.25</option>
+              <option value="3.50">3.50</option>
+              <option value="3.75">3.75</option>
+              <option value="4.00">4.00</option>
+              <option value="4.50">4.50</option>
+              <option value="5.00">5.00</option>
+            </select>
+          </button>
+          <button onclick="saveGrades()" class="bg-pcc-blue hover:bg-pcc-blue-dark text-white font-semibold px-6 py-2 rounded-lg transition">
+            Save All
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grade Entry Table -->
+    <div class="panel overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-12">#</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student No.</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student Name</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Grade</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remarks</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <% students.forEach(function(s, index) { %>
+              <tr data-enrollment="<%= s.enrollment_id %>" data-student="<%= s.student_id %>">
+                <td class="px-6 py-3 text-gray-500"><%= index + 1 %></td>
+                <td class="px-6 py-3 font-medium text-gray-800"><%= s.student_no %></td>
+                <td class="px-6 py-3 text-gray-600"><%= s.last_name %>, <%= s.first_name %></td>
+                <td class="px-6 py-3">
+                  <input type="number" min="1" max="5" step="0.25"
+                    value="<%= s.grade_value && !/^[A-Z]/.test(s.grade_value) ? s.grade_value : '' %>"
+                    class="grade-select w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pcc-blue outline-none"
+                    placeholder="1.00-5.00"
+                    data-index="<%= index %>" data-legacy="<%= /^[A-Z]/.test(s.grade_value || '') ? s.grade_value : '' %>">
+                </td>
+                <td class="px-6 py-3">
+                  <input type="text" value="<%= s.remarks || '' %>" class="remarks-input w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pcc-blue outline-none" placeholder="Optional remarks">
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Keyboard shortcuts panel -->
+    <div class="mt-4 panel p-4 text-sm text-gray-500">
+      <p class="font-medium text-gray-700 mb-2">Keyboard Shortcuts:</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <span><kbd class="px-2 py-1 bg-gray-100 rounded">Tab</kbd> Next student</span>
+        <span><kbd class="px-2 py-1 bg-gray-100 rounded">↑↓</kbd> Navigate</span>
+        <span><kbd class="px-2 py-1 bg-gray-100 rounded">Ctrl+S</kbd> Save all</span>
+        <span><kbd class="px-2 py-1 bg-gray-100 rounded">F</kbd> Search student</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const offeringId = <%= offering.id %>;
+
+  // Legacy letter grades → Philippine numeric equivalent (for rows encoded before the switch)
+  const LEGACY = {
+    'A+': '1.00', 'A': '1.00', 'A-': '1.25',
+    'B+': '1.50', 'B': '1.75', 'B-': '2.00',
+    'C+': '2.25', 'C': '2.50', 'C-': '2.75',
+    'D+': '3.00', 'D': '3.00', 'D-': '3.25',
+    'F': '5.00'
+  };
+  document.querySelectorAll('.grade-select').forEach(inp => {
+    if (inp.dataset.legacy && LEGACY[inp.dataset.legacy]) inp.value = LEGACY[inp.dataset.legacy];
+  });
+
+  const isPhGrade = v => v === '' || (/^\d(\.\d+)?$/.test(v) && +v >= 1 && +v <= 5 && Math.round(+v * 4) === +v * 4);
+
+  // Fill all grades with selected value
+  function fillAllGrades() {
+    const value = document.getElementById('defaultGrade').value;
+    if (!value) return;
+    document.querySelectorAll('.grade-select').forEach(select => {
+      select.value = value;
+    });
+    updateCount();
+  }
+
+  // Update graded count
+  function updateCount() {
+    const graded = document.querySelectorAll('.grade-select').length;
+    const filled = [...document.querySelectorAll('.grade-select')].filter(s => s.value).length;
+    document.getElementById('gradedCount').textContent = `${filled}/${graded} graded`;
+  }
+
+  // Update count on change
+  document.querySelectorAll('.grade-select').forEach(select => {
+    select.addEventListener('change', updateCount);
+  });
+
+  // Save all grades
+  async function saveGrades() {
+    const rows = document.querySelectorAll('[data-enrollment]');
+    const grades = [];
+
+    rows.forEach(row => {
+      const select = row.querySelector('.grade-select');
+      const remarks = row.querySelector('.remarks-input');
+      grades.push({
+        enrollmentId: row.dataset.enrollment,
+        studentId: row.dataset.student,
+        gradeValue: select.value,
+        remarks: remarks.value
+      });
+    });
+
+    const bad = grades.find(g => !isPhGrade(g.gradeValue));
+    if (bad) {
+      alert(`Invalid grade "${bad.gradeValue}". Use 1.00–5.00 in quarter steps (e.g. 2.50).`);
+      return;
+    }
+
+    const res = await fetch('/dean/grades/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offeringId, grades })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert(`Saved ${data.saved} grades successfully!`);
+      window.location.reload();
+    } else {
+      alert(data.error || 'Failed to save grades');
+    }
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+S to save
+    if (e.ctrlKey && e.key === 's') {
+      e.preventDefault();
+      saveGrades();
+    }
+    // F for focus on search (next version)
+  });
+
+  // Tab key moves to next row's grade select
+  document.querySelectorAll('.grade-select').forEach(select => {
+    select.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault();
+        const index = parseInt(select.dataset.index);
+        const next = document.querySelector(`[data-index="${index + 1}"]`);
+        if (next) next.focus();
+      }
+    });
+  });
+</script>
+
+<%- include('../partials/footer') %>

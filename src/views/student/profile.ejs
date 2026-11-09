@@ -1,0 +1,194 @@
+<%- include('../partials/header', { user: user }) %>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden md:flex md:flex-col md:w-64 md:shrink-0 bg-white shadow-lg">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pcc-blue rounded-full flex items-center justify-center overflow-hidden">
+          <% if (student.profile_picture) { %>
+            <img src="<%= student.profile_picture %>" alt="Profile" class="w-full h-full object-cover">
+          <% } else { %>
+            <span class="text-white font-bold text-lg"><%= student.first_name[0] %><%= student.last_name[0] %></span>
+          <% } %>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800"><%= student.first_name %> <%= student.last_name %></p>
+          <p class="text-xs text-gray-500"><%= student.student_no %></p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-2">
+      <a href="/student/dashboard" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Dashboard</span></a>
+      <a href="/student/grades" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>My Grades</span></a>
+      <a href="/student/prospectus" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>My Prospectus</span></a>
+      <a href="/student/notifications" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Notifications</span></a>
+      <a href="/student/profile" class="flex items-center space-x-3 px-4 py-3 bg-pcc-blue/10 text-pcc-blue rounded-lg font-medium"><span>Profile</span></a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 md:p-8 pb-24 md:pb-8">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">My Profile</h1>
+      <p class="text-gray-600 mt-1">Manage your personal information</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Profile Picture Card -->
+      <div class="lg:col-span-1">
+        <div class="panel p-6">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">Profile Picture</h2>
+          
+          <div class="flex justify-center mb-6">
+            <div class="w-40 h-40 rounded-full bg-gray-100 border-4 border-pcc-blue overflow-hidden flex items-center justify-center">
+              <% if (student.profile_picture) { %>
+                <img id="profilePhoto" src="<%= student.profile_picture %>" alt="Profile" class="w-full h-full object-cover">
+              <% } else { %>
+                <div id="profilePhotoPlaceholder" class="text-center">
+                  <svg class="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                  </svg>
+                  <span class="text-sm text-gray-500 mt-2 block">No photo yet</span>
+                </div>
+                <img id="profilePhoto" src="" alt="Profile" class="w-full h-full object-cover hidden">
+              <% } %>
+            </div>
+          </div>
+
+          <!-- Upload Options -->
+          <div class="space-y-3">
+            <label class="block w-full">
+              <input type="file" id="photoInput" accept="image/*" capture="user" class="hidden">
+              <button type="button" onclick="document.getElementById('photoInput').click()" 
+                class="w-full bg-pcc-blue hover:bg-pcc-blue-dark text-white font-medium py-3 rounded-lg transition flex items-center justify-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                <span>Take or Upload Photo</span>
+              </button>
+            </label>
+
+            <% if (student.profile_picture) { %>
+              <button onclick="removePhoto()" 
+                class="w-full border border-red-300 text-red-600 hover:bg-red-50 font-medium py-3 rounded-lg transition">
+                Remove Photo
+              </button>
+            <% } %>
+          </div>
+
+          <p class="text-xs text-gray-400 text-center mt-4">
+            JPG, PNG, or WebP. Max 5MB.
+          </p>
+        </div>
+      </div>
+
+      <!-- Personal Information Card -->
+      <div class="lg:col-span-2">
+        <div class="panel p-6">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">Personal Information</h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Student Number</label>
+              <p class="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800"><%= student.student_no %></p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Program</label>
+              <p class="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800"><%= student.program_code %></p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+              <p class="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800"><%= student.first_name %></p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+              <p class="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800"><%= student.last_name %></p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+              <p class="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800"><%= student.middle_name || '—' %></p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+              <p class="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800">Year <%= student.year_level %></p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <p class="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800"><%= userDetails.email %></p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <p class="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 capitalize"><%= student.status %></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security Card -->
+        <div class="panel p-6 mt-6">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">Security</h2>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="font-medium text-gray-800">Two-Factor Authentication</p>
+              <p class="text-sm text-gray-500">Protect your account with 2FA</p>
+            </div>
+            <a href="/2fa/setup" class="bg-pcc-blue hover:bg-pcc-blue-dark text-white font-medium px-4 py-2 rounded-lg transition">
+              Configure
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/student-mobile-nav', { active: 'profile' }) %>
+
+<script>
+  // Handle photo selection
+  document.getElementById('photoInput')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('Please upload a JPG, PNG, or WebP image.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image too large. Max size is 5MB.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('picture', file);
+
+    try {
+      const res = await fetch('/student/profile/picture', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert(data.error || 'Failed to upload photo.');
+      }
+    } catch (err) {
+      alert('Failed to upload photo.');
+    }
+  });
+
+  // Handle photo removal
+  async function removePhoto() {
+    if (!confirm('Remove your profile picture?')) return;
+    const res = await fetch('/student/profile/picture', { method: 'DELETE' });
+    if (res.ok) {
+      window.location.reload();
+    }
+  }
+</script>
+
+<%- include('../partials/footer') %>

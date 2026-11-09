@@ -1,0 +1,181 @@
+<%- include('../partials/header', { user: user }) %>
+  <%- include('../partials/staff-topnav', { active: 'accounts', links: [['/dean/dashboard','Dashboard'],['/dean/grade-entry','Grade Entry'],['/dean/assignments','Assignments'],['/dean/accounts','Accounts'],['/dean/reports','Reports']] }) %>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 bg-white shadow-lg">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pcc-blue rounded-full flex items-center justify-center">
+          <span class="text-white font-bold text-lg">D</span>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800"><%= user.fullName %></p>
+          <p class="text-xs text-gray-500 capitalize"><%= user.role %></p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-2">
+      <a href="/dean/dashboard" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Dashboard</span></a>
+      <a href="/dean/grade-entry" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Grade Entry</span></a>
+      <a href="/dean/assignments" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Assignments</span></a>
+      <a href="/dean/accounts" class="flex items-center space-x-3 px-4 py-3 bg-pcc-blue/10 text-pcc-blue rounded-lg font-medium"><span>Accounts</span></a>
+      <a href="/dean/reports" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Reports</span></a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">Manage Accounts</h1>
+        <p class="text-gray-500 text-sm mt-1">Approve student registrations and manage teacher accounts.</p>
+      </div>
+    </div>
+
+    <% if (success) { %>
+      <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6 text-sm"><%= success %></div>
+    <% } %>
+    <% if (error) { %>
+      <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm"><%= error %></div>
+    <% } %>
+
+    <!-- Pending Student Approvals -->
+    <div class="panel mb-8">
+      <div class="p-6 border-b flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-800">Pending Student Registrations</h2>
+        <span class="px-3 py-1 rounded-full text-sm font-medium <%= pendingStudents.length > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600' %>">
+          <%= pendingStudents.length %> pending
+        </span>
+      </div>
+      <div class="overflow-x-auto">
+        <% if (pendingStudents.length > 0) { %>
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student No.</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Program</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year / Section</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              <% pendingStudents.forEach(s => { %>
+                <tr>
+                  <td class="px-6 py-4 font-medium text-gray-800"><%= s.student_no %></td>
+                  <td class="px-6 py-4 text-gray-600"><%= s.first_name %> <%= s.last_name %></td>
+                  <td class="px-6 py-4 text-gray-600"><%= s.program_code %></td>
+                  <td class="px-6 py-4 text-gray-600"><%= s.year_level %> - <%= s.section %></td>
+                  <td class="px-6 py-4 text-gray-600"><%= s.email %></td>
+                  <td class="px-6 py-4">
+                    <form method="POST" action="/dean/accounts/students/<%= s.student_id %>/approve">
+                      <button type="submit" class="bg-pcc-blue hover:bg-pcc-blue-dark text-white text-sm font-medium px-4 py-2 rounded-lg transition">Approve</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } else { %>
+          <p class="px-6 py-8 text-center text-gray-500">No pending registrations.</p>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Create Teacher -->
+      <div class="panel">
+        <div class="p-6 border-b">
+          <h2 class="text-lg font-semibold text-gray-800">Create Teacher Account</h2>
+          <p class="text-sm text-gray-500 mt-1">Teachers use this to encode and send grades.</p>
+        </div>
+        <form method="POST" action="/dean/accounts/teachers" class="p-6 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+            <input type="text" name="name" required placeholder="e.g. Mr. John M. Castro"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pcc-blue focus:border-transparent outline-none transition">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+            <input type="email" name="email" required placeholder="teacher@pcc.edu.ph"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pcc-blue focus:border-transparent outline-none transition">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
+            <% if (departments.length) { %>
+              <select name="department_id" required
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pcc-blue focus:border-transparent outline-none transition bg-white">
+                <% if (departments.length > 1) { %>
+                  <option value="">Select department…</option>
+                <% } %>
+                <% departments.forEach(d => { %>
+                  <option value="<%= d.id %>" <%= departments.length === 1 ? 'selected' : '' %>><%= d.code %> — <%= d.name %></option>
+                <% }); %>
+              </select>
+            <% } else { %>
+              <p class="text-sm text-gray-500 px-1 py-2">No department is assigned to your account, so teachers cannot be created.</p>
+            <% } %>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+            <input type="text" name="password" required placeholder="Min. 8 characters"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pcc-blue focus:border-transparent outline-none transition">
+          </div>
+          <button type="submit" class="w-full bg-pcc-blue hover:bg-pcc-blue-dark text-white font-medium py-2.5 rounded-lg transition">
+            Create Teacher Account
+          </button>
+        </form>
+      </div>
+
+      <!-- Staff Accounts -->
+      <div class="panel">
+        <div class="p-6 border-b">
+          <h2 class="text-lg font-semibold text-gray-800">Staff Accounts</h2>
+          <p class="text-sm text-gray-500 mt-1">Dean, administrators, and teachers.</p>
+        </div>
+        <div class="divide-y divide-gray-200">
+          <% staff.forEach(u => { %>
+            <div class="px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-medium text-gray-800"><%= u.full_name %></p>
+                <p class="text-xs text-gray-500">
+                  <%= u.email %> · <span class="capitalize"><%= u.role %></span>
+                  <% if (u.department_code) { %> · <span class="font-medium text-gray-600"><%= u.department_code %></span><% } %>
+                </p>
+              </div>
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="px-3 py-1 rounded-full text-xs font-medium <%= u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' %>">
+                  <%= u.is_active ? 'Active' : 'Inactive' %>
+                </span>
+                <% if (u.role === 'faculty' && departments.length > 0 && (user.role === 'admin' || u.department_id === null || departments.some(d => d.id === u.department_id))) { %>
+                  <form method="POST" action="/dean/accounts/faculty/<%= u.id %>/department" class="flex items-center gap-1.5">
+                    <label class="sr-only" for="dept-<%= u.id %>">Department for <%= u.full_name %></label>
+                    <select id="dept-<%= u.id %>" name="department_id"
+                      class="px-2 py-1 border border-gray-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-pcc-blue/40 focus:border-pcc-blue">
+                      <% departments.forEach(d => { %>
+                        <option value="<%= d.id %>" <%= u.department_id === d.id ? 'selected' : '' %>><%= d.code %></option>
+                      <% }); %>
+                    </select>
+                    <button type="submit" class="text-xs text-pcc-blue hover:text-pcc-blue-dark font-medium">Set</button>
+                  </form>
+                <% } %>
+                <% if (u.id !== user.id) { %>
+                  <form method="POST" action="/dean/accounts/<%= u.id %>/toggle">
+                    <button type="submit" class="text-sm <%= u.is_active ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800' %> font-medium">
+                      <%= u.is_active ? 'Deactivate' : 'Activate' %>
+                    </button>
+                  </form>
+                <% } %>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

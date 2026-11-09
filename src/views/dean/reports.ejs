@@ -1,0 +1,74 @@
+<%- include('../partials/header', { user: user }) %>
+  <%- include('../partials/staff-topnav', { active: 'reports', links: [['/dean/dashboard','Dashboard'],['/dean/grade-entry','Grade Entry'],['/dean/assignments','Assignments'],['/dean/accounts','Accounts'],['/dean/reports','Reports']] }) %>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 bg-white shadow-lg">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pcc-blue rounded-full flex items-center justify-center">
+          <span class="text-white font-bold text-lg">D</span>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800"><%= user.fullName %></p>
+          <p class="text-xs text-gray-500 capitalize"><%= user.role %></p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-2">
+      <a href="/dean/dashboard" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Dashboard</span></a>
+      <a href="/dean/grade-entry" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Grade Entry</span></a>
+      <a href="/dean/assignments" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Assignments</span></a>
+      <a href="/dean/accounts" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition"><span>Accounts</span></a>
+      <a href="/dean/reports" class="flex items-center space-x-3 px-4 py-3 bg-pcc-blue/10 text-pcc-blue rounded-lg font-medium"><span>Reports</span></a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">Department Reports</h1>
+      <p class="text-gray-600 mt-1">GPA statistics by program</p>
+    </div>
+
+    <div class="panel overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Program</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Students</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Average GPA</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <% const programs = ['BSIT', 'BSHM', 'BSBA', 'BSCRIM', 'BSED', 'BSEED']; %>
+            <% programs.forEach(prog => { %>
+              <% const stats = gpaStats.find(s => s.program_code === prog); %>
+              <tr>
+                <td class="px-6 py-4 font-medium text-gray-800"><%= prog %></td>
+                <td class="px-6 py-4 text-gray-600"><%= stats ? stats.student_count : 0 %></td>
+                <td class="px-6 py-4 text-gray-600"><%= stats ? Number(stats.avg_gpa).toFixed(2) : 'N/A' %></td>
+                <td class="px-6 py-4">
+                  <% if (stats && stats.avg_gpa >= 3.0) { %>
+                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Excellent</span>
+                  <% } else if (stats && stats.avg_gpa >= 2.0) { %>
+                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">Good</span>
+                  <% } else if (stats) { %>
+                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">Needs Improvement</span>
+                  <% } else { %>
+                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">No Data</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

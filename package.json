@@ -1,0 +1,42 @@
+{
+  "name": "pcc-student-portal",
+  "version": "1.0.0",
+  "description": "Passi City College - Student Portal for Prospectus Grades",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "seed": "node seeds/seed.js",
+    "demo-data": "node seeds/demo-data.js",
+    "rotate-demo": "node seeds/rotate-demo-passwords.js",
+    "backup": "node scripts/backup-db.js",
+    "setup-data": "node scripts/setup-data-dir.js",
+    "smoke": "node scripts/smoke.js",
+    "vendor-assets": "node scripts/vendor-assets.js"
+  },
+  "keywords": [
+    "pcc",
+    "student-portal",
+    "grades"
+  ],
+  "author": "Passi City College",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^13.0.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "express-ejs-layouts": "^2.5.1",
+    "express-rate-limit": "^8.7.0",
+    "express-validator": "^7.3.2",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.3.0",
+    "nodemailer": "^10.0.15",
+    "otplib": "^13.5.0",
+    "qrcode": "^1.5.4",
+    "uuid": "^14.0.2"
+  }
+}

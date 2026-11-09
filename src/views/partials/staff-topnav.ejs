@@ -1,0 +1,15 @@
+<%
+  const act = (typeof active !== 'undefined') ? active : '';
+%>
+<% if (typeof links !== 'undefined' && links.length > 0) { %>
+  <nav class="staff-topnav lg:hidden sticky z-40 flex gap-1.5 px-3 py-2 overflow-x-auto backdrop-blur border-b"
+       style="top: 68px; background: rgba(241,232,211,.94); border-color: rgba(212,175,55,.32);">
+    <% links.forEach(l => { const on = act && l[0].endsWith('/' + act); %>
+      <a href="<%= l[0] %>"
+         class="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium <%= on ? 'text-white shadow-md' : 'text-gray-600 hover:bg-gray-100' %>"
+         <% if (on) { %>style="background: linear-gradient(135deg,#16307F,#0B1747); box-shadow: 0 6px 14px -8px rgba(22,48,127,.9);"<% } %>>
+        <%= l[1] %>
+      </a>
+    <% }); %>
+  </nav>
+<% } %>

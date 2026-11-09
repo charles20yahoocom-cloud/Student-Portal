@@ -1,0 +1,244 @@
+<%- include('../partials/header', { user: user }) %>
+  <%- include('../partials/staff-topnav', { active: 'grade-entry', links: [['/faculty/dashboard','Dashboard'],['/faculty/subjects','My Subjects'],['/faculty/grade-entry','Grade Entry'],['/profile','Profile']] }) %>
+
+<div class="flex min-h-screen">
+  <%- include('../partials/faculty-sidebar', { active: 'grade-entry', user: user }) %>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+    <!-- Back button -->
+    <a href="/faculty/grade-entry" class="inline-flex items-center text-pcc-blue hover:text-pcc-blue-dark mb-4">
+      ← Back to My Subjects
+    </a>
+
+    <!-- Class Header -->
+    <div class="panel mb-6 p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-bold text-gray-800"><%= offering.course_code %> - <%= offering.course_name %></h1>
+          <p class="text-gray-500 mt-1">
+            Section <%= offering.section %> | <%= students.length %> students |
+            <%= activeSemester ? activeSemester.name + ' ' + activeSemester.school_year : '' %>
+          </p>
+          <p class="text-xs text-gray-400 mt-1">
+            Philippine grading: <span class="font-medium">1.00</span> (100) &middot;
+            <span class="font-medium">3.00</span> (75, passing) &middot;
+            <span class="font-medium text-red-500">5.00</span> (failure) &middot; quarter steps only
+          </p>
+          <p class="text-xs text-gray-400 mt-1">
+            CSV import: fill the Grade column only; leave a row blank to keep that grade unchanged.
+          </p>
+        </div>
+        <div class="flex items-center space-x-3">
+          <span id="gradedCount" class="text-sm text-gray-600"><%= students.filter(s => s.grade_value).length %>/<%= students.length %> graded</span>
+          <a href="/faculty/grade-entry/<%= offering.id %>/template"
+            class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition">
+            Download CSV Template
+          </a>
+          <button onclick="document.getElementById('importFile').click()"
+            class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition">
+            Upload CSV
+          </button>
+          <input type="file" id="importFile" accept=".csv,text/csv" class="hidden" onchange="importGrades(this.files[0])">
+          <button onclick="fillAllGrades()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition">
+            Set all to:
+            <select id="defaultGrade" class="bg-transparent outline-none" onchange="fillAllGrades()">
+              <option value="">--</option>
+              <option value="1.00">1.00</option>
+              <option value="1.25">1.25</option>
+              <option value="1.50">1.50</option>
+              <option value="1.75">1.75</option>
+              <option value="2.00">2.00</option>
+              <option value="2.25">2.25</option>
+              <option value="2.50">2.50</option>
+              <option value="2.75">2.75</option>
+              <option value="3.00">3.00</option>
+              <option value="3.25">3.25</option>
+              <option value="3.50">3.50</option>
+              <option value="3.75">3.75</option>
+              <option value="4.00">4.00</option>
+              <option value="4.50">4.50</option>
+              <option value="5.00">5.00</option>
+            </select>
+          </button>
+          <button onclick="saveGrades()" class="bg-pcc-blue hover:bg-pcc-blue-dark text-white font-semibold px-6 py-2 rounded-lg transition">
+            Submit Grades
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grade Entry Table -->
+    <div class="panel overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-12">#</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student No.</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student Name</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Grade</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remarks</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <% students.forEach(function(s, index) { %>
+              <tr data-enrollment="<%= s.enrollment_id %>" data-student="<%= s.student_id %>">
+                <td class="px-6 py-3 text-gray-500"><%= index + 1 %></td>
+                <td class="px-6 py-3 font-medium text-gray-800"><%= s.student_no %></td>
+                <td class="px-6 py-3 text-gray-600"><%= s.last_name %>, <%= s.first_name %></td>
+                <td class="px-6 py-3">
+                  <input type="number" min="1" max="5" step="0.25"
+                    value="<%= s.grade_value && !/^[A-Z]/.test(s.grade_value) ? s.grade_value : '' %>"
+                    class="grade-select w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pcc-blue outline-none"
+                    placeholder="1.00-5.00"
+                    data-index="<%= index %>" data-legacy="<%= /^[A-Z]/.test(s.grade_value || '') ? s.grade_value : '' %>">
+                </td>
+                <td class="px-6 py-3">
+                  <input type="text" value="<%= s.remarks || '' %>" class="remarks-input w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pcc-blue outline-none" placeholder="Optional remarks">
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        <% if (students.length === 0) { %>
+          <div class="p-8 text-center text-gray-500">No students enrolled in this section yet.</div>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Keyboard shortcuts panel -->
+    <div class="mt-4 panel p-4 text-sm text-gray-500">
+      <p class="font-medium text-gray-700 mb-2">Keyboard Shortcuts:</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <span><kbd class="px-2 py-1 bg-gray-100 rounded">Tab</kbd> Next student</span>
+        <span><kbd class="px-2 py-1 bg-gray-100 rounded">↑↓</kbd> Navigate</span>
+        <span><kbd class="px-2 py-1 bg-gray-100 rounded">Ctrl+S</kbd> Submit all</span>
+        <span><kbd class="px-2 py-1 bg-gray-100 rounded">F</kbd> Search student</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const offeringId = <%= offering.id %>;
+
+  const LEGACY = {
+    'A+': '1.00', 'A': '1.00', 'A-': '1.25',
+    'B+': '1.50', 'B': '1.75', 'B-': '2.00',
+    'C+': '2.25', 'C': '2.50', 'C-': '2.75',
+    'D+': '3.00', 'D': '3.00', 'D-': '3.25',
+    'F': '5.00'
+  };
+  document.querySelectorAll('.grade-select').forEach(inp => {
+    if (inp.dataset.legacy && LEGACY[inp.dataset.legacy]) inp.value = LEGACY[inp.dataset.legacy];
+  });
+
+  const isPhGrade = v => v === '' || (/^\d(\.\d+)?$/.test(v) && +v >= 1 && +v <= 5 && Math.round(+v * 4) === +v * 4);
+
+  function fillAllGrades() {
+    const value = document.getElementById('defaultGrade').value;
+    if (!value) return;
+    document.querySelectorAll('.grade-select').forEach(select => {
+      select.value = value;
+    });
+    updateCount();
+  }
+
+  function updateCount() {
+    const graded = document.querySelectorAll('.grade-select').length;
+    const filled = [...document.querySelectorAll('.grade-select')].filter(s => s.value).length;
+    document.getElementById('gradedCount').textContent = `${filled}/${graded} graded`;
+  }
+
+  document.querySelectorAll('.grade-select').forEach(select => {
+    select.addEventListener('change', updateCount);
+  });
+
+  async function saveGrades() {
+    const rows = document.querySelectorAll('[data-enrollment]');
+    const grades = [];
+
+    rows.forEach(row => {
+      const select = row.querySelector('.grade-select');
+      const remarks = row.querySelector('.remarks-input');
+      grades.push({
+        enrollmentId: row.dataset.enrollment,
+        studentId: row.dataset.student,
+        gradeValue: select.value,
+        remarks: remarks.value
+      });
+    });
+
+    const bad = grades.find(g => !isPhGrade(g.gradeValue));
+    if (bad) {
+      alert(`Invalid grade "${bad.gradeValue}". Use 1.00–5.00 in quarter steps (e.g. 2.50).`);
+      return;
+    }
+
+    const res = await fetch('/faculty/grades/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offeringId, grades })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert(`Submitted ${data.saved} grades successfully!`);
+      window.location.reload();
+    } else {
+      alert(data.error || 'Failed to save grades');
+    }
+  }
+
+  async function importGrades(file) {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('offeringId', offeringId);
+    fd.append('file', file);
+
+    let data;
+    try {
+      const res = await fetch('/faculty/grades/import', { method: 'POST', body: fd });
+      data = await res.json();
+    } catch (err) {
+      alert('Import failed. Please try again.');
+      document.getElementById('importFile').value = '';
+      return;
+    }
+
+    if (data.success) {
+      const lines = [`Imported ${data.imported} grade(s).`];
+      if (data.blank) lines.push(`${data.blank} row(s) left blank (kept unchanged).`);
+      (data.skipped || []).slice(0, 6).forEach(s => {
+        lines.push(`Row ${s.row}${s.studentNo ? ` (${s.studentNo})` : ''}: ${s.reason}`);
+      });
+      if ((data.skipped || []).length > 6) lines.push(`...and ${data.skipped.length - 6} more.`);
+      alert(lines.join('\n'));
+      if (data.imported > 0) window.location.reload();
+    } else {
+      alert(data.error || 'Import failed');
+    }
+    document.getElementById('importFile').value = '';
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 's') {
+      e.preventDefault();
+      saveGrades();
+    }
+  });
+
+  document.querySelectorAll('.grade-select').forEach(select => {
+    select.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault();
+        const index = parseInt(select.dataset.index);
+        const next = document.querySelector(`[data-index="${index + 1}"]`);
+        if (next) next.focus();
+      }
+    });
+  });
+</script>
+
+<%- include('../partials/footer') %>

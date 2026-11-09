@@ -1,0 +1,433 @@
+<%- include('../partials/header', { user: user }) %>
+
+<%
+  // Build semester groups from the curriculum
+  const sems = {};
+  curriculum.forEach(ci => {
+    if (!sems[ci.semester_number]) sems[ci.semester_number] = [];
+    sems[ci.semester_number].push(ci);
+  });
+
+  const yearWord = ['', 'FIRST', 'SECOND', 'THIRD', 'FOURTH'];
+  const semWord = ['', '1st', '2nd'];
+
+  function semesterStats(items) {
+    const graded = items.filter(c => grades[c.course_code] && grades[c.course_code].grade_points != null);
+    let sumW = 0, sumC = 0;
+    graded.forEach(c => {
+      sumW += Number(grades[c.course_code].grade_points) * c.credits;
+      sumC += c.credits;
+    });
+    return {
+      avg: sumC > 0 ? (sumW / sumC) : null,
+      units: items.reduce((s, c) => s + c.credits, 0)
+    };
+  }
+
+  const totalUnits = curriculum.reduce((s, c) => s + c.credits, 0);
+  const ayText = semester ? semester.school_year : '';
+  const semText = semester ? semester.name : '';
+%>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden md:flex md:flex-col md:w-64 md:shrink-0 bg-white shadow-lg no-print">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pcc-blue rounded-full flex items-center justify-center overflow-hidden">
+          <% if (student.profile_picture) { %>
+            <img src="<%= student.profile_picture %>" alt="Profile" class="w-full h-full object-cover">
+          <% } else { %>
+            <span class="text-white font-bold text-lg"><%= student.first_name[0] %><%= student.last_name[0] %></span>
+          <% } %>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800"><%= student.first_name %> <%= student.last_name %></p>
+          <p class="text-xs text-gray-500"><%= student.student_no %></p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-2">
+      <a href="/student/dashboard" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+        </svg>
+        <span>Dashboard</span>
+      </a>
+      <a href="/student/grades" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+        </svg>
+        <span>My Grades</span>
+      </a>
+      <a href="/student/prospectus" class="flex items-center space-x-3 px-4 py-3 bg-pcc-blue/10 text-pcc-blue rounded-lg font-medium">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        <span>My Prospectus</span>
+      </a>
+      <a href="/student/notifications" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+        </svg>
+        <span>Notifications</span>
+      </a>
+      <a href="/student/profile" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+        </svg>
+        <span>Profile</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-2 sm:p-6 md:p-8 pb-24 md:pb-8">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3 no-print">
+      <div class="min-w-0">
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-800">My Prospectus</h1>
+        <p class="text-gray-600 mt-1 text-sm sm:text-base"><%= student.program_code %> | Academic Record - 1st to 4th Year</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+      <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+        Paper:
+        <select id="paper-size" class="px-2 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-pcc-blue outline-none">
+          <option value="a4">A4</option>
+          <option value="short">Short</option>
+          <option value="long">Long</option>
+        </select>
+      </label>
+      <button onclick="downloadProspectusPDF(this)" data-student-no="<%= student.student_no %>" class="inline-flex items-center gap-2 bg-pcc-gold hover:brightness-95 text-[#0B1747] font-medium px-3 py-2 sm:px-4 text-sm sm:text-base rounded-lg transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+        </svg>
+        <span class="dl-label">Download PDF</span>
+      </button>
+      <button onclick="fitProspectusAndPrint()" class="inline-flex items-center gap-2 bg-pcc-blue hover:bg-pcc-blue-dark text-white font-medium px-3 py-2 sm:px-4 text-sm sm:text-base rounded-lg transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zM7 9V3h10v6"></path>
+        </svg>
+        Print
+      </button>
+      </div>
+    </div>
+
+    <!-- Official prospectus document -->
+    <div id="prospectus-sheet" class="prospectus-sheet bg-white shadow-lg mx-auto" style="max-width: 1200px;">
+      <div class="doc-head px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 text-center border-b-2 border-gray-800">
+        <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+          <div class="flex items-center gap-2 sm:gap-3 justify-self-start">
+            <img src="/images/it-logo.jpg" alt="IT Department logo" class="w-10 h-10 sm:w-16 sm:h-16 rounded-full object-cover shrink-0">
+            <img src="/images/pcc-logo.jpg" alt="Passi City College logo" class="w-10 h-10 sm:w-16 sm:h-16 rounded-full object-cover shrink-0">
+          </div>
+          <div class="text-center px-1 min-w-0">
+            <p class="text-[13px] leading-tight sm:text-lg font-semibold tracking-wide text-gray-800">PASSI CITY COLLEGE</p>
+            <p class="text-[11px] sm:text-sm text-gray-600">City of Passi, Iloilo</p>
+          </div>
+          <img src="/images/passi-city-seal.png" alt="Official seal" class="w-10 h-10 sm:w-16 sm:h-16 object-contain shrink-0 justify-self-end">
+        </div>
+        <p class="mt-3 text-lg sm:text-xl font-bold text-gray-900">BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY</p>
+        <p class="text-xs text-gray-600 mt-1">Review and Revised as per CMO #25, s. 2015</p>
+      </div>
+
+      <div class="px-4 sm:px-6 py-3 sm:py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm border-b border-gray-300 prospectus-info">
+        <div class="flex items-end gap-2">
+          <span class="font-semibold text-gray-700 whitespace-nowrap">NAME:</span>
+          <span class="flex-1 border-b border-dotted border-gray-400 pb-0.5 text-gray-900 uppercase"><%= student.last_name %>, <%= student.first_name %> <%= student.middle_name || '' %></span>
+        </div>
+        <div class="flex items-end gap-2">
+          <span class="font-semibold text-gray-700 whitespace-nowrap">COURSE/YEAR:</span>
+          <span class="flex-1 border-b border-dotted border-gray-400 pb-0.5 text-gray-900"><%= student.program_code %> <%= student.year_level %></span>
+        </div>
+        <div class="flex items-end gap-2">
+          <span class="font-semibold text-gray-700 whitespace-nowrap">SEMESTER:</span>
+          <span class="flex-1 border-b border-dotted border-gray-400 pb-0.5 text-gray-900"><%= semText %></span>
+        </div>
+        <div class="flex items-end gap-2">
+          <span class="font-semibold text-gray-700 whitespace-nowrap">CELLPHONE NO.:</span>
+          <span class="flex-1 border-b border-dotted border-gray-400 pb-0.5 text-gray-900">&nbsp;</span>
+        </div>
+        <div class="flex items-end gap-2">
+          <span class="font-semibold text-gray-700 whitespace-nowrap">A.Y.:</span>
+          <span class="flex-1 border-b border-dotted border-gray-400 pb-0.5 text-gray-900"><%= ayText %></span>
+        </div>
+        <div class="flex items-end gap-2">
+          <span class="font-semibold text-gray-700 whitespace-nowrap">STUDENT NO.:</span>
+          <span class="flex-1 border-b border-dotted border-gray-400 pb-0.5 text-gray-900"><%= student.student_no %></span>
+        </div>
+      </div>
+
+      <% if (curriculum.length === 0) { %>
+        <div class="p-12 text-center text-gray-500">
+          <p class="text-lg font-medium mb-2">No curriculum found</p>
+          <p class="text-sm">No prospectus curriculum is available for <strong><%= student.program_code %></strong> yet.</p>
+        </div>
+      <% } else { %>
+        <div class="px-4 sm:px-6 py-4">
+          <% for (let year = 1; year <= 4; year++) { %>
+            <div class="mb-5">
+              <div class="year-banner text-center py-1 mb-2">
+                <span class="font-bold tracking-widest text-gray-900"><%= yearWord[year] %> YEAR</span>
+              </div>
+
+              <div class="year-grid grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <% for (let s = 0; s < 2; s++) { %>
+                <% const sem = (year - 1) * 2 + (s + 1); %>
+                <% const items = sems[sem] || []; %>
+                <% const stats = semesterStats(items); %>
+                <div class="mb-4">
+                  <p class="text-sm font-semibold text-gray-700 mb-1"><%= semWord[s + 1] %> Semester</p>
+                  <div class="overflow-x-auto prospectus-scroll">
+                    <table class="prospectus-table w-full text-xs border-collapse">
+                      <thead>
+                        <tr>
+                          <th rowspan="2" class="border border-gray-500 px-1.5 py-1">Course No.</th>
+                          <th rowspan="2" class="border border-gray-500 px-2 py-1 text-left">Descriptive Title</th>
+                          <th rowspan="2" class="border border-gray-500 px-1.5 py-1">Final Grade</th>
+                          <th colspan="2" class="border border-gray-500 px-1.5 py-1 hidden sm:table-cell">Hours</th>
+                          <th rowspan="2" class="border border-gray-500 px-1.5 py-1">Units</th>
+                          <th rowspan="2" class="border border-gray-500 px-1.5 py-1 hidden sm:table-cell">Prerequisite</th>
+                        </tr>
+                        <tr class="hidden sm:table-row">
+                          <th class="border border-gray-500 px-1.5 py-1">Lec</th>
+                          <th class="border border-gray-500 px-1.5 py-1">Lab</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% items.forEach(course => { %>
+                          <% const g = grades[course.course_code]; %>
+                          <tr>
+                            <td class="border border-gray-500 px-2 py-1 text-center font-medium text-gray-800 whitespace-nowrap"><%= course.course_code %></td>
+                            <td class="border border-gray-500 px-2 py-1 text-gray-700"><%= course.course_name %></td>
+                            <td class="border border-gray-500 px-2 py-1 text-center text-gray-900 whitespace-nowrap"><%= g && g.grade_value ? g.grade_value : '' %></td>
+                            <td class="border border-gray-500 px-2 py-1 text-center text-gray-600 hidden sm:table-cell"><%= course.lec_hours != null ? course.lec_hours : course.credits %></td>
+                            <td class="border border-gray-500 px-2 py-1 text-center text-gray-600 hidden sm:table-cell"><%= course.lab_hours != null ? course.lab_hours : 0 %></td>
+                            <td class="border border-gray-500 px-2 py-1 text-center text-gray-900 whitespace-nowrap"><%= course.credits %></td>
+                            <td class="border border-gray-500 px-2 py-1 text-gray-600 hidden sm:table-cell"><%= course.prerequisite || 'None' %></td>
+                          </tr>
+                        <% }); %>
+                      </tbody>
+                      <tfoot>
+                        <tr class="bg-gray-50 font-semibold">
+                          <td colspan="2" class="border border-gray-500 px-2 py-1 text-right text-gray-700">AVERAGE</td>
+                          <td class="border border-gray-500 px-2 py-1 text-center text-gray-900 whitespace-nowrap"><%= stats.avg != null ? stats.avg.toFixed(2) : '' %></td>
+                          <td class="border border-gray-500 px-2 py-1 text-center text-gray-600 hidden sm:table-cell"></td>
+                          <td class="border border-gray-500 px-2 py-1 text-center text-gray-600 hidden sm:table-cell"></td>
+                          <td class="border border-gray-500 px-2 py-1 text-center text-gray-600"><%= stats.units %> units</td>
+                          <td class="border border-gray-500 hidden sm:table-cell"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              <% } %>
+              </div>
+            </div>
+          <% } %>
+
+          <div class="mt-6 flex items-center justify-between text-sm prospectus-total">
+            <p class="font-semibold text-gray-800">Total Units: <span class="text-gray-900"><%= totalUnits %></span></p>
+          </div>
+
+          <div class="mt-10 mb-4 flex justify-end prospectus-sign">
+            <div class="text-center">
+              <p class="text-xs text-gray-600">Certified Correct:</p>
+              <p class="mt-6 font-semibold text-gray-900 border-t border-gray-500 pt-1 px-6">MYLEN B. PADERES, M.Eng'g</p>
+              <p class="text-xs text-gray-600">Dean</p>
+            </div>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  </main>
+</div>
+
+<style>
+  .prospectus-sheet { color: #1a1a1a; }
+  .prospectus-table th { background: #f3f4f6; font-weight: 600; vertical-align: middle; }
+  .year-banner { background: #e5e7eb; border: 1px solid #6b7280; }
+  /* Download capture: stack semesters full-width, no scroll clipping */
+  html.dl-capture .year-grid { grid-template-columns: 1fr !important; }
+  html.dl-capture .prospectus-scroll { overflow: visible !important; }
+
+  /* Compact one-page sizing, applied while printing (see script below) */
+  html.print-fit .prospectus-sheet { display: block !important; width: 194mm !important; max-width: none !important; box-shadow: none !important; border: none !important; }
+  html.print-fit .prospectus-sheet > div { padding-left: 0 !important; padding-right: 0 !important; }
+  html.print-fit .prospectus-table { font-size: 7pt !important; }
+  html.print-fit .prospectus-table th, html.print-fit .prospectus-table td { padding: 0.5px 1.5px !important; line-height: 1.05 !important; } html.print-fit .prospectus-info { display: grid !important; grid-template-columns: 1fr 1fr !important; column-gap: 8mm !important; row-gap: 1mm !important; } .prospectus-scroll { overflow: visible !important; } .prospectus-table { width: 100% !important; border-collapse: collapse !important; } .prospectus-total { display: flex !important; justify-content: space-between !important; align-items: center !important; } .prospectus-sign { display: flex !important; justify-content: flex-end !important; } html.print-fit .prospectus-scroll { overflow: visible !important; } html.print-fit .prospectus-table { width: 100% !important; border-collapse: collapse !important; } html.print-fit .prospectus-total { display: flex !important; justify-content: space-between !important; align-items: center !important; } html.print-fit .prospectus-sign { display: flex !important; justify-content: flex-end !important; }
+  html.print-fit .year-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 2mm !important; }
+  html.print-fit .year-grid > div { margin-bottom: 1mm !important; }
+  html.print-fit .year-banner { padding: 0 !important; margin-bottom: 0.5mm !important; }
+  html.print-fit .mb-5, html.print-fit .mb-4 { margin-bottom: 1mm !important; }
+  html.print-fit .mt-6 { margin-top: 2mm !important; }
+  html.print-fit .mt-10 { margin-top: 3mm !important; }
+
+  @media print {
+    .no-print { display: none !important; }
+    aside, header, footer { display: none !important; }
+    main { padding: 0 !important; }
+    body { background: #fff !important; }
+    .prospectus-sheet { width: 194mm !important; max-width: none !important; box-shadow: none !important; border: none !important; zoom: 0.7; }
+    .prospectus-sheet > div { padding-left: 0 !important; padding-right: 0 !important; }
+    .prospectus-table { font-size: 7pt !important; }
+    .prospectus-table th, .prospectus-table td { padding: 0.5px 1.5px !important; line-height: 1.05 !important; } .prospectus-info { display: grid !important; grid-template-columns: 1fr 1fr !important; column-gap: 8mm !important; row-gap: 1mm !important; } .prospectus-scroll { overflow: visible !important; } .prospectus-table { width: 100% !important; border-collapse: collapse !important; } .prospectus-total { display: flex !important; justify-content: space-between !important; align-items: center !important; } .prospectus-sign { display: flex !important; justify-content: flex-end !important; }
+    .year-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 2mm !important; }
+    .year-grid > div { margin-bottom: 1mm !important; }
+    .year-banner { padding: 0 !important; margin-bottom: 0.5mm !important; }
+    .mb-5, .mb-4 { margin-bottom: 1mm !important; }
+    .mt-6 { margin-top: 2mm !important; }
+    .mt-10 { margin-top: 3mm !important; }
+    @page { size: A4 portrait; margin: 8mm; }
+  }
+</style>
+
+<script src="/js/html2canvas.min.js"></script>
+<script src="/js/jspdf.umd.min.js"></script>
+<script>
+  (function () {
+    var sheet = document.querySelector('.prospectus-sheet');
+    if (!sheet) return;
+    var root = document.documentElement;
+
+    // Paper sizes (mm): A4, PH Short (US Letter), PH Long (US Legal)
+    var PAPER_SIZES = {
+      a4:    { label: 'A4',    css: 'A4',     w: 210,   h: 297,   jspdf: 'a4' },
+      short: { label: 'Short', css: 'letter', w: 215.9, h: 279.4, jspdf: 'letter' },
+      long:  { label: 'Long',  css: 'legal',  w: 215.9, h: 355.6, jspdf: 'legal' }
+    };
+    function paperKey() {
+      var sel = document.getElementById('paper-size');
+      var key = sel ? sel.value : 'a4';
+      return PAPER_SIZES[key] ? key : 'a4';
+    }
+    function currentPaper() { return PAPER_SIZES[paperKey()]; }
+    function applyPageSize() {
+      var p = currentPaper();
+      var tag = document.getElementById('pagesize-css');
+      if (!tag) {
+        tag = document.createElement('style');
+        tag.id = 'pagesize-css';
+        document.body.appendChild(tag);
+      }
+      tag.textContent = '@page { size: ' + p.css + ' portrait !important; margin: 8mm !important; }';
+      try { localStorage.setItem('prospectus-paper', paperKey()); } catch (e) {}
+    }
+
+    function fitOnePage() {
+      root.classList.add('print-fit');
+      sheet.style.zoom = '';
+      var p = currentPaper();
+      var usableH = (p.h - 16) / 25.4 * 96; // page height minus 8mm top/bottom
+      var usableW = (p.w - 16) / 25.4 * 96; // page width minus 8mm left/right
+      var scale = 1;
+      for (var i = 0; i < 4; i++) {
+        var rect = sheet.getBoundingClientRect();
+        var layoutW = rect.width / scale;
+        var layoutH = rect.height / scale;
+        var need = Math.min(usableW / layoutW, usableH / layoutH);
+        if (need >= 0.999) break; // fits at current scale
+        scale = need * 0.98; // safety margin; re-measure as text re-wraps
+        if (scale <= 0) { scale = 1; break; }
+        sheet.style.zoom = scale;
+      }
+    }
+    function reset() {
+      sheet.style.zoom = '';
+      root.classList.remove('print-fit');
+    }
+
+    window.addEventListener('beforeprint', fitOnePage);
+    window.addEventListener('afterprint', reset);
+
+    window.fitProspectusAndPrint = function () {
+      fitOnePage();
+      window.print();
+      setTimeout(reset, 0);
+    };
+
+    // Paper size selector (remembered per browser)
+    (function initPaper() {
+      var sel = document.getElementById('paper-size');
+      var saved = null;
+      try { saved = localStorage.getItem('prospectus-paper'); } catch (e) {}
+      if (sel && saved && PAPER_SIZES[saved]) sel.value = saved;
+      if (sel) sel.addEventListener('change', applyPageSize);
+      applyPageSize();
+    })();
+
+    // html2canvas 1.x cannot parse modern space/slash rgb() syntax that Tailwind
+    // emits (e.g. rgb(31 41 55 / 1)). Sanitize the clone to comma syntax first.
+    function sanitizeCssColor(value) {
+      return String(value).replace(/rgba?\(\s*(\d+)\s+(\d+)\s+(\d+)(?:\s*\/\s*([\d.]+%?))?\s*\)/g, function (m, a, b, c, d) {
+        var alpha = 1;
+        if (d !== undefined) alpha = d.indexOf('%') >= 0 ? parseFloat(d) / 100 : parseFloat(d);
+        return 'rgba(' + a + ',' + b + ',' + c + ',' + alpha + ')';
+      });
+    }
+    var COLOR_PROPS = ['color', 'background-color', 'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color', 'outline-color', 'box-shadow', 'text-shadow'];
+    function sanitizeClone(doc) {
+      var els = doc.querySelectorAll('.prospectus-sheet, .prospectus-sheet *');
+      var view = doc.defaultView;
+      for (var i = 0; i < els.length; i++) {
+        var cs;
+        try { cs = view.getComputedStyle(els[i]); } catch (e) { continue; }
+        for (var k = 0; k < COLOR_PROPS.length; k++) {
+          var v = cs.getPropertyValue(COLOR_PROPS[k]);
+          if (v && v.indexOf('rgb(') >= 0 && /rgb\(\s*\d+\s+\d+/.test(v)) {
+            try { els[i].style.setProperty(COLOR_PROPS[k], sanitizeCssColor(v), 'important'); } catch (e2) {}
+          }
+        }
+      }
+    }
+
+    // Download a one-page digital copy (PDF) of the prospectus in the chosen paper size
+    window.downloadProspectusPDF = function (btn) {
+      var label = btn ? btn.querySelector('.dl-label') : null;
+      if (!window.html2canvas || !window.jspdf) {
+        alert('PDF engine failed to load. Please reload the page or use Print instead.');
+        return;
+      }
+      var studentNo = (btn && btn.getAttribute('data-student-no')) || 'prospectus';
+      var p = currentPaper();
+      if (label) label.textContent = 'Preparing…';
+      root.classList.add('print-fit', 'dl-capture'); // compact official look for the capture
+      // On phones some columns hide via .hidden — force them visible so the PDF keeps full data
+      var forced = [];
+      sheet.querySelectorAll('.prospectus-table .hidden').forEach(function (el) {
+        forced.push([el, el.style.display]);
+        el.style.display = (el.tagName === 'TR') ? 'table-row' : 'table-cell';
+      });
+      var restoreForced = function () {
+        forced.forEach(function (pair) { pair[0].style.display = pair[1] || ''; });
+      };
+      var doSave = function () {
+        return window.html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, onclone: sanitizeClone }).then(function (canvas) {
+          var pdf = new window.jspdf.jsPDF('p', 'mm', p.jspdf);
+          var pageW = p.w - 16, pageH = p.h - 16; // 8mm margins
+          var imgW = canvas.width, imgH = canvas.height;
+          var s = Math.min(pageW / imgW, pageH / imgH);
+          var w = imgW * s, h = imgH * s;
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (p.w - w) / 2, (p.h - h) / 2, w, h);
+          pdf.save('Prospectus-' + studentNo + '-' + p.label + '.pdf');
+        });
+      };
+      // Let the compact styles apply before capturing
+      setTimeout(function () {
+        doSave().catch(function (err) {
+          if (window.console && console.error) console.error(err);
+          alert('Direct download failed in this browser. Opening print instead — choose "Save as PDF" there.');
+          try { window.fitProspectusAndPrint(); } catch (e) {}
+        }).finally(function () {
+          restoreForced();
+          root.classList.remove('print-fit', 'dl-capture');
+          if (label) label.textContent = 'Download PDF';
+        });
+      }, 60);
+    };
+  })();
+</script>
+
+<%- include('../partials/student-mobile-nav', { active: 'prospectus' }) %>
+
+<%- include('../partials/footer') %>

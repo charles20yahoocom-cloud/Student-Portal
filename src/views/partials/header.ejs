@@ -1,0 +1,39 @@
+<% const profileHref = (user && user.role === 'student') ? '/student/profile' : '/profile'; %>
+<header class="sticky top-0 z-50 text-white shadow-[0_10px_34px_-14px_rgba(7,14,46,0.75)]"
+        style="background: linear-gradient(90deg, #0B1747 0%, #10215F 42%, #16307F 100%);">
+  <div class="relative">
+    <div class="absolute inset-x-0 top-0 h-[2px]"
+         style="background: linear-gradient(90deg, #D4AF37 0%, #EFD27A 45%, #2A5BD7 78%, transparent 100%);"></div>
+    <div class="flex items-center justify-between px-4 sm:px-6 py-3">
+      <div class="flex items-center space-x-3 min-w-0">
+        <img src="/images/pcc-logo.jpg" alt="Passi City College logo"
+             class="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover shrink-0"
+             style="box-shadow: 0 0 0 2px rgba(212,175,55,.55), 0 0 0 4px rgba(255,255,255,.08), 0 6px 16px -6px rgba(212,175,55,.8);">
+        <div class="min-w-0">
+          <span class="font-display font-semibold text-base sm:text-lg tracking-tight leading-tight block">Passi City College</span>
+          <span class="text-[11px] sm:text-xs block truncate" style="color: rgba(239,210,122,.85); letter-spacing:.14em;">STUDENT PORTAL</span>
+        </div>
+      </div>
+
+      <% if (user) { %>
+        <div class="flex items-center space-x-3 sm:space-x-4 shrink-0">
+          <a href="<%= profileHref %>" title="Profile settings"
+             class="flex items-center space-x-2.5 rounded-xl px-1.5 py-1 transition hover:bg-white/10">
+            <div class="w-8 h-8 rounded-full hidden sm:flex items-center justify-center text-xs font-semibold uppercase"
+                 style="background: rgba(255,255,255,.1); border:1px solid rgba(212,175,55,.5); color:#EFD27A;">
+              <%= user.fullName ? user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('') : 'U' %>
+            </div>
+            <span class="text-sm hidden sm:inline text-white/90"><%= user.fullName %></span>
+          </a>
+          <a href="/auth/logout"
+             class="text-sm font-medium px-3 py-1.5 rounded-xl transition"
+             style="border:1px solid rgba(212,175,55,.4); color:#F5EFD8;"
+             onmouseover="this.style.background='rgba(212,175,55,.16)'"
+             onmouseout="this.style.background='transparent'">
+            Logout
+          </a>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</header>

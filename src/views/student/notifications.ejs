@@ -1,0 +1,100 @@
+<%- include('../partials/header', { user: user }) %>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden md:flex md:flex-col md:w-64 md:shrink-0 bg-white shadow-lg">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pcc-blue rounded-full flex items-center justify-center">
+          <span class="text-white font-bold text-lg">PCC</span>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800"><%= user.fullName %></p>
+          <p class="text-xs text-gray-500">Student</p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-2">
+      <a href="/student/dashboard" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <span>Dashboard</span>
+      </a>
+      <a href="/student/grades" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <span>My Grades</span>
+      </a>
+      <a href="/student/prospectus" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <span>My Prospectus</span>
+      </a>
+      <a href="/student/notifications" class="flex items-center space-x-3 px-4 py-3 bg-pcc-blue/10 text-pcc-blue rounded-lg font-medium">
+        <span>Notifications</span>
+        <% if (unreadCount > 0) { %>
+          <span class="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full"><%= unreadCount %></span>
+        <% } %>
+      </a>
+      <a href="/student/profile" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+        <span>Profile</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 md:p-8 pb-24 md:pb-8">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">Notifications</h1>
+      <p class="text-gray-600 mt-1">Your updates and alerts</p>
+    </div>
+
+    <div class="panel">
+      <% if (notifications.length > 0) { %>
+        <div class="divide-y divide-gray-200">
+          <% notifications.forEach(notif => { %>
+            <div class="p-4 sm:p-6 <%= !notif.read_at ? 'bg-pcc-blue/5' : '' %>">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-start space-x-3 sm:space-x-4 min-w-0">
+                  <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 
+                    <%= notif.type === 'grade_release' ? 'bg-green-100' : 'bg-pcc-blue/10' %>">
+                    <svg class="w-5 h-5 <%= notif.type === 'grade_release' ? 'text-green-600' : 'text-pcc-blue' %>" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="font-medium text-gray-800"><%= notif.title %></p>
+                    <p class="text-gray-600 mt-1"><%= notif.message %></p>
+                  </div>
+                </div>
+                <div class="text-right shrink-0 ml-1">
+                  <p class="text-xs text-gray-400 whitespace-nowrap"><%= new Date(notif.created_at).toLocaleDateString() %></p>
+                  <% if (!notif.read_at) { %>
+                    <button 
+                      onclick="markRead(<%= notif.id %>)"
+                      class="text-xs text-pcc-blue hover:text-pcc-blue-dark mt-1"
+                    >
+                      Mark as read
+                    </button>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } else { %>
+        <div class="p-12 text-center text-gray-500">
+          <p>No notifications yet</p>
+        </div>
+      <% } %>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/student-mobile-nav', { active: 'notifications', unreadCount: unreadCount }) %>
+
+<script>
+  async function markRead(id) {
+    const res = await fetch(`/student/notifications/${id}/read`, { method: 'PUT' });
+    if (res.ok) {
+      window.location.reload();
+    }
+  }
+</script>
+
+<%- include('../partials/footer') %>

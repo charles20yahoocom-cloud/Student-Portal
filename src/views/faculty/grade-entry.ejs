@@ -1,0 +1,72 @@
+<%- include('../partials/header', { user: user }) %>
+  <%- include('../partials/staff-topnav', { active: 'grade-entry', links: [['/faculty/dashboard','Dashboard'],['/faculty/subjects','My Subjects'],['/faculty/grade-entry','Grade Entry'],['/profile','Profile']] }) %>
+
+<div class="flex min-h-screen">
+  <%- include('../partials/faculty-sidebar', { active: 'grade-entry', user: user }) %>
+
+  <!-- Main Content -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">Grade Entry</h1>
+      <p class="text-gray-600 mt-1">
+        <%= activeSemester
+          ? 'Submit grades for the subjects you handle — ' + activeSemester.name + ' ' + activeSemester.school_year
+          : 'No active semester' %>
+      </p>
+    </div>
+
+    <%
+      const grouped = {};
+      offerings.forEach(o => {
+        if (!grouped[o.course_code]) grouped[o.course_code] = { code: o.course_code, name: o.course_name, sections: [] };
+        grouped[o.course_code].sections.push(o);
+      });
+      const subjectList = Object.values(grouped);
+    %>
+
+    <div class="space-y-6">
+      <% if (subjectList.length > 0) { %>
+        <% subjectList.forEach(subject => { %>
+          <div class="panel p-6">
+            <div class="flex items-start justify-between mb-4">
+              <div>
+                <h3 class="font-semibold text-gray-800 text-lg"><%= subject.code %></h3>
+                <p class="text-sm text-gray-500 mt-1"><%= subject.name %></p>
+              </div>
+              <span class="px-3 py-1 rounded-full text-sm font-medium bg-pcc-blue/10 text-pcc-blue">
+                <%= subject.sections.length %> section<%= subject.sections.length > 1 ? 's' : '' %>
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <% subject.sections.forEach(o => { %>
+                <a href="/faculty/grade-entry/<%= o.id %>" class="border border-gray-200 rounded-xl p-4 hover:border-pcc-blue hover:bg-pcc-blue/5 transition group">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 group-hover:bg-pcc-blue group-hover:text-white transition">
+                      Sec. <%= o.section %>
+                    </span>
+                    <span class="text-pcc-blue text-sm group-hover:translate-x-0.5 transition">Encode →</span>
+                  </div>
+                  <p class="text-sm text-gray-600">
+                    <span class="font-medium text-gray-800"><%= o.enrolled_count %></span> students
+                    &middot; <span class="font-medium text-gray-800"><%= o.graded_count %>/<%= o.enrolled_count %></span> graded
+                  </p>
+                </a>
+              <% }); %>
+            </div>
+          </div>
+        <% }); %>
+      <% } else { %>
+        <div class="panel p-12 text-center">
+          <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          <h3 class="text-lg font-medium text-gray-800 mb-2">No Subjects Assigned</h3>
+          <p class="text-gray-500">You don't have any subjects assigned for this semester. Contact the Dean if this seems wrong.</p>
+        </div>
+      <% } %>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

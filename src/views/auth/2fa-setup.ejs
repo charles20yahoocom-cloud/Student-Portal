@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="/css/fonts.css" rel="stylesheet">
+  <script src="/js/tailwind.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'pcc-blue': '#1E429F',
+            'pcc-blue-dark': '#16307F',
+            'pcc-gold': '#D4AF37',
+            'royal-950': '#070E2E',
+            'royal-900': '#0B1747',
+            'royal-800': '#10215F',
+            'royal-700': '#16307F',
+            'royal-600': '#1E429F',
+            'gold-300': '#F7E7A6',
+            'gold-400': '#EFD27A',
+            'gold-500': '#D4AF37',
+            'gold-600': '#B8912B',
+          },
+          fontFamily: {
+            sans: ['Inter', "'Segoe UI'", 'system-ui', 'sans-serif'],
+            display: ['"Playfair Display"', 'Georgia', 'serif'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- Header -->
+  <header class="bg-pcc-blue text-white shadow-lg">
+    <div class="max-w-4xl mx-auto px-4 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+            <span class="text-pcc-blue font-bold">PCC</span>
+          </div>
+          <span class="font-semibold">Student Portal</span>
+        </div>
+        <a href="/" class="text-white hover:text-pcc-gold transition">← Back to Dashboard</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-2xl mx-auto px-4 py-8">
+    <div class="bg-white rounded-xl shadow-lg p-8">
+      <h1 class="font-display text-2xl font-bold text-royal-900 mb-6">Two-Factor Authentication Setup</h1>
+
+      <!-- Success Message -->
+      <% if (message && !qrCode) { %>
+        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
+          <%= message %>
+        </div>
+      <% } %>
+
+      <!-- Error Message -->
+      <% if (message && qrCode) { %>
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+          <%= message %>
+        </div>
+      <% } %>
+
+      <% if (qrCode) { %>
+        <!-- Setup Steps -->
+        <div class="space-y-6">
+          <!-- Step 1 -->
+          <div class="flex items-start space-x-4">
+            <div class="w-8 h-8 bg-pcc-blue text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold">1</div>
+            <div>
+              <h3 class="font-semibold text-gray-800">Install an Authenticator App</h3>
+              <p class="text-gray-600 text-sm mt-1">Download Google Authenticator, Authy, or any TOTP authenticator app on your phone.</p>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="flex items-start space-x-4">
+            <div class="w-8 h-8 bg-pcc-blue text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold">2</div>
+            <div>
+              <h3 class="font-semibold text-gray-800">Scan the QR Code</h3>
+              <p class="text-gray-600 text-sm mt-1">Open your authenticator app and scan the QR code below.</p>
+              <div class="mt-4 flex justify-center">
+                <div class="bg-white p-4 rounded-xl border-2 border-gray-200">
+                  <img src="<%= qrCode %>" alt="QR Code" class="w-48 h-48">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="flex items-start space-x-4">
+            <div class="w-8 h-8 bg-pcc-blue text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold">3</div>
+            <div>
+              <h3 class="font-semibold text-gray-800">Enter the Verification Code</h3>
+              <p class="text-gray-600 text-sm mt-1">Enter the 6-digit code from your authenticator app to verify setup.</p>
+              
+              <form action="/2fa/verify-setup" method="POST" class="mt-4 space-y-4">
+                <input 
+                  type="text" 
+                  name="code" 
+                  required
+                  maxlength="6"
+                  pattern="[0-9]{6}"
+                  placeholder="000000"
+                  class="w-full px-4 py-3 text-center text-2xl tracking-widest border border-gray-300 rounded-lg focus:ring-2 focus:ring-pcc-blue focus:border-transparent outline-none transition"
+                >
+                <button 
+                  type="submit"
+                  class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition duration-200"
+                >
+                  Verify & Enable 2FA
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Manual Entry -->
+          <div class="bg-gray-50 rounded-lg p-4">
+            <p class="text-sm text-gray-600 font-medium mb-2">Manual Entry Key:</p>
+            <code class="text-sm bg-white px-3 py-2 rounded border font-mono"><%= secret %></code>
+          </div>
+        </div>
+      <% } else if (!message) { %>
+        <div class="text-center py-8">
+          <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+          </div>
+          <p class="text-gray-600">Click below to set up two-factor authentication.</p>
+          <a href="/2fa/setup" class="inline-block mt-4 bg-pcc-blue hover:bg-pcc-blue-dark text-white font-semibold px-6 py-3 rounded-lg transition">
+            Set Up 2FA
+          </a>
+        </div>
+      <% } %>
+    </div>
+  </main>
+</body>
+</html>
