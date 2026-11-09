@@ -2,7 +2,32 @@
 -- Collapse the duplicate seed BSIT templates into one canonical template (id 1)
 -- and load the official 48-course sequence (semester 1-8 = Year 1-4, 1st/2nd sem).
 
+-- Startup migrations run before optional development seeding.
+INSERT INTO curriculum_templates (id, program_code, program_name, total_years, total_semesters)
+SELECT 1, 'BSIT', 'Bachelor of Science in Information Technology', 4, 8
+WHERE NOT EXISTS (SELECT 1 FROM curriculum_templates WHERE id = 1);
+
 DELETE FROM curriculum_items WHERE template_id IN (SELECT id FROM curriculum_templates WHERE program_code = 'BSIT');
+
+-- Remap assignments before deleting duplicate templates. If a student has
+-- multiple BSIT assignments, the newest template's values take precedence.
+INSERT INTO student_curriculum (student_id, template_id, enrolled_year, current_semester, status)
+SELECT student_id, 1, enrolled_year, current_semester, status
+FROM student_curriculum
+WHERE template_id IN (
+  SELECT id FROM curriculum_templates WHERE program_code = 'BSIT' AND id <> 1
+)
+ORDER BY template_id
+ON CONFLICT(student_id, template_id) DO UPDATE SET
+  enrolled_year = excluded.enrolled_year,
+  current_semester = excluded.current_semester,
+  status = excluded.status;
+
+DELETE FROM student_curriculum
+WHERE template_id IN (
+  SELECT id FROM curriculum_templates WHERE program_code = 'BSIT' AND id <> 1
+);
+
 DELETE FROM curriculum_templates WHERE program_code = 'BSIT' AND id <> 1;
 
 UPDATE curriculum_templates
