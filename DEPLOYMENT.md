@@ -3,41 +3,66 @@
 This guide covers the **LAN demo first** path, with notes for public hosting later.
 Everything runs from the project root unless stated otherwise.
 
-## Render database persistence
+## Neon PostgreSQL on Render
 
-Student, instructor, dean, and admin records are stored together in the server's
-SQLite database, not in browser storage. On Render, the database and uploaded
-profile photos must live under the persistent disk mount. The root `render.yaml`
-is a Render Blueprint and declares a 10 GB disk mounted at
-`/opt/render/project/pcc-data`. When using an existing Dashboard-created
-service, either sync the Blueprint with that service or attach a persistent disk
-to the service in **Settings → Disks** with that exact mount path. The service
-must have a plan that supports persistent disks. Confirm the disk is attached
-before deploying; otherwise the app intentionally stops rather than writing
-student data to temporary storage.
+The app continues to use SQLite for local development. When `DATABASE_URL` is
+set, it uses Neon PostgreSQL for application reads and writes. Keep the Neon
+connection string in Render's environment-variable dashboard as a secret; do
+not commit it, put it in this guide, or share it in chat. The Render Blueprint
+declares `DATABASE_URL` as a secret value that must be supplied in the dashboard.
 
-Set these environment variables on the service (the Blueprint declares them):
+On its first start against a truly empty PostgreSQL database, the app creates
+the current schema and migration ledger atomically. The bootstrap creates all
+tables first, then adds foreign keys so the existing users/departments
+relationship is supported. Existing databases with tables but no migration
+ledger are rejected rather than modified.
 
-```text
-PCC_DATA_DIR=/opt/render/project/pcc-data
-DB_PATH=/opt/render/project/pcc-data/pcc.db
-UPLOAD_DIR=/opt/render/project/pcc-data/uploads
+The app's Neon config also enables the branch-scoped AI Gateway. Its backend
+client reads `NEON_AI_GATEWAY_BASE_URL` and `NEON_AI_GATEWAY_TOKEN`; the portal
+does not currently expose an AI feature to students or staff. To verify both
+Neon services after importing the database, run `npm run smoke:neon` with the
+three variables available in the environment. The smoke check runs a read-only
+PostgreSQL query and a short AI completion (which uses AI Gateway credits).
+Copy the variables from the locally pulled environment into Render's
+environment-variable dashboard; local `.env` files are not deployed to Render.
+
+### Preserve and import existing records
+
+Do not point the running service at a new, empty Neon database. First obtain a
+verified, consistent SQLite backup of the current production database. A local
+development database is not proof of the current production data. If the old
+Render instance restarted without a disk, its previous ephemeral data may
+already be unrecoverable; restore a known backup before continuing.
+
+Create a new, empty Neon database, then set its connection string in the
+environment of the machine doing the import (not in command arguments or source
+files). Run the import against the verified SQLite backup:
+
+```powershell
+$env:DATABASE_URL = Read-Host "Neon PostgreSQL connection string"
+npm run migrate:postgres -- "C:\path\to\verified-production-backup.db"
+Remove-Item Env:DATABASE_URL
 ```
 
-The app detects the previous relative `DB_PATH` setting and makes a consistent
-SQLite snapshot onto the persistent disk on startup if the destination database
-does not exist. It refuses to start if the configured Render disk mount is
-missing rather than silently creating another temporary database. Keep the
-persistent disk attached and back up the SQLite file regularly.
+The importer refuses to proceed if the SQLite integrity/foreign-key checks fail,
+the source migrations are incomplete, or the Neon database already contains
+tables. It creates the schema from the backed-up database, copies all tables
+and indexes in foreign-key order, preserves IDs, resets identity sequences, and
+checks the row count of every imported table before committing. A failed import
+rolls back; it does not merge or overwrite a non-empty Neon database.
 
-If startup reports `Render persistent disk is not mounted`, attach or sync the
-disk at the exact path above and redeploy. Do not remove the startup guard or
-change the database path to the app checkout; either would risk losing student
-records on a later deploy.
+Only after the import succeeds, set `DATABASE_URL` as a secret on the Render
+service and deploy. Set `NEON_AI_GATEWAY_BASE_URL` and
+`NEON_AI_GATEWAY_TOKEN` there as well if the app will use the gateway. Startup
+verifies the imported schema and refuses to serve traffic if required
+PostgreSQL migrations are missing. Future schema changes need a matching SQL
+migration under `migrations/postgres/`.
 
-If Render has already discarded the old temporary database during a restart or
-deployment, it cannot be recovered from the new empty database; restore a
-backup before directing the service at it.
+Profile photos are files, not database rows. The Blueprint currently writes
+them under Render's application filesystem, which is ephemeral; they can be
+lost on deploy/restart. Use a persistent disk or object-storage integration if
+those files must survive. This does not affect the student/account/grade data
+stored in Neon.
 
 ## 1. What you need
 

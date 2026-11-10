@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const db = require('../config/database');
+const db = require('../config/database-runtime');
 const { requireAuth, requireRole, jarForRole } = require('../middleware/authenticate');
 const { generateTokens, setTokenCookies } = require('./auth.routes');
 const { imageUpload, saveProfileImage, removeProfileImage } = require('../utils/image-upload');
@@ -26,8 +26,8 @@ router.use(requireAuth);
 router.use(requireRole(...STAFF_ROLES));
 
 // GET /profile
-router.get('/', (req, res) => {
-  const userDetails = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+router.get('/', async (req, res) => {
+  const userDetails = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
   if (!userDetails) {
     return res.redirect('/login');
@@ -46,7 +46,7 @@ router.get('/', (req, res) => {
 });
 
 // POST /profile — update name + email
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const fullName = String(req.body.full_name || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
 
@@ -57,15 +57,15 @@ router.post('/', (req, res) => {
     return res.redirect('/profile?error=' + encodeURIComponent('Please enter a valid email address.'));
   }
 
-  const taken = db.prepare('SELECT id FROM users WHERE lower(email) = ? AND id != ?').get(email, req.user.id);
+  const taken = await db.prepare('SELECT id FROM users WHERE lower(email) = ? AND id != ?').get(email, req.user.id);
   if (taken) {
     return res.redirect('/profile?error=' + encodeURIComponent('That email is already used by another account.'));
   }
 
-  db.prepare("UPDATE users SET full_name = ?, email = ?, updated_at = datetime('now') WHERE id = ?")
+  await db.prepare("UPDATE users SET full_name = ?, email = ?, updated_at = datetime('now') WHERE id = ?")
     .run(fullName, email, req.user.id);
 
-  const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const updated = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const { accessToken, refreshToken } = generateTokens(updated);
   setTokenCookies(res, accessToken, refreshToken, jarForRole(updated.role));
 
@@ -78,7 +78,7 @@ router.post('/password', async (req, res) => {
   const next = String(req.body.new_password || '');
   const confirm = String(req.body.confirm_password || '');
 
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
   if (!(await bcrypt.compare(current, user.password_hash))) {
     return res.redirect('/profile?error=' + encodeURIComponent('Your current password is incorrect.'));
@@ -94,7 +94,7 @@ router.post('/password', async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(next, 10);
-  db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?")
+  await db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?")
     .run(passwordHash, req.user.id);
 
   res.redirect('/profile?pw=1');
@@ -109,12 +109,12 @@ router.post('/picture', (req, res, next) => {
       : 'That photo could not be used. Please choose a JPG, PNG, or WebP image.';
     return res.status(400).json({ error: message });
   });
-}, (req, res) => {
+}, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No image uploaded. Use a JPG, PNG, or WebP file.' });
   }
 
-  const row = db.prepare('SELECT profile_picture FROM users WHERE id = ?').get(req.user.id);
+  const row = await db.prepare('SELECT profile_picture FROM users WHERE id = ?').get(req.user.id);
   let filePath;
   try {
     filePath = saveProfileImage(req.file, `staff-${req.user.id}`);
@@ -122,7 +122,7 @@ router.post('/picture', (req, res, next) => {
     return res.status(400).json({ error: 'That photo could not be used. Please choose a real JPG, PNG, or WebP image.' });
   }
 
-  db.prepare("UPDATE users SET profile_picture = ?, picture_updated_at = datetime('now') WHERE id = ?")
+  await db.prepare("UPDATE users SET profile_picture = ?, picture_updated_at = datetime('now') WHERE id = ?")
     .run(filePath, req.user.id);
 
   if (row && row.profile_picture && row.profile_picture !== filePath) {
@@ -133,9 +133,9 @@ router.post('/picture', (req, res, next) => {
 });
 
 // DELETE /profile/picture
-router.delete('/picture', (req, res) => {
-  const row = db.prepare('SELECT profile_picture FROM users WHERE id = ?').get(req.user.id);
-  db.prepare('UPDATE users SET profile_picture = NULL, picture_updated_at = NULL WHERE id = ?')
+router.delete('/picture', async (req, res) => {
+  const row = await db.prepare('SELECT profile_picture FROM users WHERE id = ?').get(req.user.id);
+  await db.prepare('UPDATE users SET profile_picture = NULL, picture_updated_at = NULL WHERE id = ?')
     .run(req.user.id);
 
   if (row && row.profile_picture) {

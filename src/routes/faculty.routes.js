@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const db = require('../config/database');
+const db = require('../config/database-runtime');
 const { requireAuth, requireRole } = require('../middleware/authenticate');
 
 const importUpload = multer({
@@ -99,11 +99,11 @@ router.use(requireAuth);
 router.use(requireRole('faculty'));
 
 // GET /faculty/dashboard
-router.get('/dashboard', (req, res) => {
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+router.get('/dashboard', async (req, res) => {
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
 
   // Classes assigned to this teacher for the active semester
-  const classes = activeSemester ? db.prepare(`
+  const classes = activeSemester ? await db.prepare(`
     SELECT co.*,
       (SELECT COUNT(*) FROM enrollments e WHERE e.offering_id = co.id AND e.status = 'enrolled') as enrolled_count,
       (SELECT COUNT(*) FROM enrollments e
@@ -115,7 +115,7 @@ router.get('/dashboard', (req, res) => {
   `).all(req.user.id, activeSemester.id) : [];
 
   // Students in this teacher's classes
-  const teacherStudents = db.prepare(`
+  const teacherStudents = await db.prepare(`
     SELECT DISTINCT s.id, s.student_no, s.first_name, s.last_name, s.program_code, s.year_level
     FROM students s
     JOIN enrollments e ON e.student_id = s.id
@@ -134,10 +134,10 @@ router.get('/dashboard', (req, res) => {
 });
 
 // GET /faculty/subjects — read-only overview of the subjects/sections this instructor handles
-router.get('/subjects', (req, res) => {
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+router.get('/subjects', async (req, res) => {
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
 
-  const offerings = activeSemester ? db.prepare(`
+  const offerings = activeSemester ? await db.prepare(`
     SELECT co.*,
       (SELECT COUNT(*) FROM enrollments e WHERE e.offering_id = co.id AND e.status = 'enrolled') as enrolled_count,
       (SELECT COUNT(*) FROM enrollments e
@@ -157,10 +157,10 @@ router.get('/subjects', (req, res) => {
 });
 
 // GET /faculty/grade-entry — subjects/sections held by this instructor
-router.get('/grade-entry', (req, res) => {
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+router.get('/grade-entry', async (req, res) => {
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
 
-  const offerings = activeSemester ? db.prepare(`
+  const offerings = activeSemester ? await db.prepare(`
     SELECT co.*,
       (SELECT COUNT(*) FROM enrollments e WHERE e.offering_id = co.id AND e.status = 'enrolled') as enrolled_count,
       (SELECT COUNT(*) FROM enrollments e
@@ -180,15 +180,15 @@ router.get('/grade-entry', (req, res) => {
 });
 
 // GET /faculty/grade-entry/:offeringId — grade sheet for one section
-router.get('/grade-entry/:offeringId', (req, res) => {
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
-  const offering = db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.offeringId);
+router.get('/grade-entry/:offeringId', async (req, res) => {
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+  const offering = await db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.offeringId);
 
   if (!offering || offering.instructor_id !== req.user.id) {
     return res.redirect('/faculty/grade-entry');
   }
 
-  const students = db.prepare(`
+  const students = await db.prepare(`
     SELECT e.id as enrollment_id, e.student_id, s.student_no, s.first_name, s.last_name,
       g.id as grade_id, g.grade_value, g.grade_points, g.remarks
     FROM enrollments e
@@ -208,15 +208,15 @@ router.get('/grade-entry/:offeringId', (req, res) => {
 });
 
 // POST /faculty/grades/batch — submit grades for the instructor's own class
-router.post('/grades/batch', (req, res) => {
+router.post('/grades/batch', async (req, res) => {
   const { offeringId, grades } = req.body;
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
 
   if (!activeSemester) {
     return res.status(400).json({ error: 'No active semester' });
   }
 
-  const offering = db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(offeringId);
+  const offering = await db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(offeringId);
   if (!offering) {
     return res.status(404).json({ error: 'Course offering not found' });
   }
@@ -246,16 +246,16 @@ router.post('/grades/batch', (req, res) => {
     SELECT id FROM enrollments WHERE id = ? AND offering_id = ?
   `);
 
-  const transaction = db.transaction(() => {
+  const transaction = await db.transaction(async () => {
     let saved = 0;
     for (const grade of (Array.isArray(grades) ? grades : [])) {
       const parsed = grade.gradeValue ? parsePhGrade(grade.gradeValue) : null;
       if (!parsed) continue;
-      if (!ownEnrollment.get(grade.enrollmentId, offering.id)) continue;
+      if (!(await ownEnrollment.get(grade.enrollmentId, offering.id))) continue;
 
-      const oldGrade = db.prepare('SELECT grade_value FROM grades WHERE enrollment_id = ?').get(grade.enrollmentId);
+      const oldGrade = await db.prepare('SELECT grade_value FROM grades WHERE enrollment_id = ?').get(grade.enrollmentId);
 
-      insertGrade.run(
+      await insertGrade.run(
         grade.enrollmentId,
         grade.studentId,
         offering.course_code,
@@ -267,7 +267,7 @@ router.post('/grades/batch', (req, res) => {
         req.user.id
       );
 
-      insertAudit.run(
+      await insertAudit.run(
         grade.studentId,
         offering.course_code,
         activeSemester.id,
@@ -282,7 +282,7 @@ router.post('/grades/batch', (req, res) => {
   });
 
   try {
-    const saved = transaction();
+    const saved = await transaction();
     res.json({ success: true, saved });
   } catch (err) {
     console.error('Batch grade save error:', err);
@@ -291,14 +291,14 @@ router.post('/grades/batch', (req, res) => {
 });
 
 // GET /faculty/grade-entry/:offeringId/template — CSV template pre-filled with the section's students
-router.get('/grade-entry/:offeringId/template', (req, res) => {
-  const offering = db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.offeringId);
+router.get('/grade-entry/:offeringId/template', async (req, res) => {
+  const offering = await db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.offeringId);
 
   if (!offering || offering.instructor_id !== req.user.id) {
     return res.redirect('/faculty/grade-entry');
   }
 
-  const students = db.prepare(`
+  const students = await db.prepare(`
     SELECT s.student_no, s.first_name, s.last_name
     FROM enrollments e
     JOIN students s ON e.student_id = s.id
@@ -322,7 +322,7 @@ router.get('/grade-entry/:offeringId/template', (req, res) => {
 });
 
 // POST /faculty/grades/import — validate a CSV file and save the grades
-router.post('/grades/import', importUpload.single('file'), (req, res) => {
+router.post('/grades/import', importUpload.single('file'), async (req, res) => {
   if (req.fileValidationError) {
     return res.status(400).json({ error: req.fileValidationError });
   }
@@ -330,12 +330,12 @@ router.post('/grades/import', importUpload.single('file'), (req, res) => {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
   if (!activeSemester) {
     return res.status(400).json({ error: 'No active semester' });
   }
 
-  const offering = db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.body.offeringId);
+  const offering = await db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.body.offeringId);
   if (!offering) {
     return res.status(404).json({ error: 'Course offering not found' });
   }
@@ -374,12 +374,12 @@ router.post('/grades/import', importUpload.single('file'), (req, res) => {
   }
 
   const enrolled = new Map(
-    db.prepare(`
+    (await db.prepare(`
       SELECT e.id as enrollment_id, s.id as student_id, s.student_no
       FROM enrollments e
       JOIN students s ON e.student_id = s.id
       WHERE e.offering_id = ? AND e.status = 'enrolled'
-    `).all(offering.id).map(r => [normalizeStudentNo(r.student_no), r])
+    `).all(offering.id)).map(r => [normalizeStudentNo(r.student_no), r])
   );
 
   const skipped = [];
@@ -442,17 +442,17 @@ router.post('/grades/import', importUpload.single('file'), (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  const transaction = db.transaction(() => {
+  const transaction = await db.transaction(async () => {
     for (const g of toSave) {
-      const oldGrade = db.prepare('SELECT grade_value FROM grades WHERE enrollment_id = ?').get(g.enrollment_id);
-      insertGrade.run(g.enrollment_id, g.student_id, offering.course_code, activeSemester.id, g.gradeValue, g.gradePoints, offering.credits, g.remarks, req.user.id);
-      insertAudit.run(g.student_id, offering.course_code, activeSemester.id, oldGrade?.grade_value || null, g.gradeValue, req.user.id);
+      const oldGrade = await db.prepare('SELECT grade_value FROM grades WHERE enrollment_id = ?').get(g.enrollment_id);
+      await insertGrade.run(g.enrollment_id, g.student_id, offering.course_code, activeSemester.id, g.gradeValue, g.gradePoints, offering.credits, g.remarks, req.user.id);
+      await insertAudit.run(g.student_id, offering.course_code, activeSemester.id, oldGrade?.grade_value || null, g.gradeValue, req.user.id);
     }
     return toSave.length;
   });
 
   try {
-    const imported = transaction();
+    const imported = await transaction();
     res.json({ success: true, imported, skipped, blank });
   } catch (err) {
     console.error('Grade import error:', err);

@@ -1,5 +1,6 @@
 # Secrets — never commit
 .env
+.env.local
 
 # Node
 node_modules/
@@ -15,3 +16,4 @@ uploads/profiles/
 # OS / editor
 .DS_Store
 *.log
+.neon
