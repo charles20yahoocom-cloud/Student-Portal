@@ -218,6 +218,7 @@ A full pre-deployment review lives in
 | Document | Contents |
 |----------|----------|
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | LAN setup, firewall, process manager, backups, restore |
+| [`RENDER_FIX.md`](RENDER_FIX.md) | Cloud deploy: Render env vars, Neon Postgres, deploy troubleshooting |
 | [`../STUDENT_PORTAL_PLAN.md`](../STUDENT_PORTAL_PLAN.md) | Agile delivery plan, sprint increments, feature plan |
 | [`../STUDENT_PORTAL_ANALYSIS.md`](../STUDENT_PORTAL_ANALYSIS.md) | Requirements, schema, rules, Agile delivery approach |
 | [`../PCC_PORTAL_AUDIT.md`](../PCC_PORTAL_AUDIT.md) | Security findings, P0 fixes, remaining risks |
