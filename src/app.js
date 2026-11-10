@@ -115,12 +115,12 @@ app.use((req, res, next) => {
 // Department theme flag (e.g. IT dean + IT students get the maroon tech theme).
 // IT students layer an extra `dept-it-student` class for their own
 // binary-and-wires background. Available in views as `deptTheme`.
-const db = require('./config/database');
+const db = require('./config/database-runtime');
 
 // Lightweight liveness/readiness probe for a process manager or uptime monitor.
-app.get('/healthz', (req, res) => {
+app.get('/healthz', async (req, res) => {
   try {
-    db.prepare('SELECT 1 AS ok').get();
+    await db.prepare('SELECT 1 AS ok').get();
     res.json({ status: 'ok', db: 'ok', uptime: Math.round(process.uptime()) });
   } catch (err) {
     console.error('Health check failed:', err.message);
@@ -128,16 +128,16 @@ app.get('/healthz', (req, res) => {
   }
 });
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   res.locals.deptTheme = null;
   if (req.user) {
     try {
       let code = null;
       if (req.user.role === 'dean') {
-        const row = db.prepare('SELECT code FROM departments WHERE hod_user_id = ? LIMIT 1').get(req.user.id);
+        const row = await db.prepare('SELECT code FROM departments WHERE hod_user_id = ? LIMIT 1').get(req.user.id);
         if (row && row.code) code = String(row.code).toLowerCase();
       } else if (req.user.role === 'student') {
-        const row = db.prepare(`
+        const row = await db.prepare(`
           SELECT d.code FROM students s
           JOIN programs p ON s.program_code = p.code
           JOIN departments d ON p.department_id = d.id
@@ -216,29 +216,43 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const server = app.listen(PORT, HOST, () => {
+let server;
+
+async function startServer() {
+  await db.initialize();
+  server = app.listen(PORT, HOST, () => {
   console.log(`
   PCC Student Portal - Passi City College
   ---------------------------------------
   Local:    http://localhost:${PORT}
   Bind:     ${HOST}:${PORT}
   Env:      ${process.env.NODE_ENV || 'development'}
-  Database: ${dbPath}
+  Database: ${db.isPostgres ? 'PostgreSQL (DATABASE_URL)' : dbPath}
   Uploads:  ${uploadsDir}
   Health:   http://localhost:${PORT}/healthz
   `);
-});
+  });
 
-server.on('error', (err) => {
-  console.error('Server failed to start:', err.message);
+  server.on('error', (err) => {
+    console.error('Server failed to start:', err.message);
+    process.exit(1);
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Database initialization failed:', err);
   process.exit(1);
 });
 
 // Close cleanly so SQLite checkpoints its WAL and the port is released.
-function shutdown(signal) {
+async function shutdown(signal) {
   console.log(`${signal} received - shutting down...`);
-  server.close(() => {
-    try { db.close(); } catch (err) { /* already closed */ }
+  if (!server) {
+    await db.close();
+    process.exit(0);
+  }
+  server.close(async () => {
+    try { await db.close(); } catch (err) { console.error('Database shutdown failed:', err.message); }
     process.exit(0);
   });
   setTimeout(() => process.exit(1), 10000).unref();

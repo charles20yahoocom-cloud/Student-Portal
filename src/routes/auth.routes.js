@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { authenticator } = require('otplib');
 const { body, validationResult } = require('express-validator');
-const db = require('../config/database');
+const db = require('../config/database-runtime');
 const { requireAuth, JAR_COOKIES, jarForRole } = require('../middleware/authenticate');
 const { sendMail, smtpConfigured } = require('../utils/mailer');
 const { imageUpload, saveProfileImage } = require('../utils/image-upload');
@@ -254,19 +254,19 @@ router.post('/forgot-password', async (req, res) => {
     });
   }
 
-  const user = db.prepare("SELECT id, email FROM users WHERE lower(email) = ? AND role = 'student'").get(email);
+  const user = await db.prepare("SELECT id, email FROM users WHERE lower(email) = ? AND role = 'student'").get(email);
   if (!user) {
     return renderStep1({ notice: FORGOT_GENERIC_NOTICE });
   }
 
-  const recent = db.prepare(`SELECT COUNT(*) AS c FROM password_resets WHERE email = ? AND created_at > datetime('now', '-15 minutes')`).get(email).c;
+  const recent = (await db.prepare(`SELECT COUNT(*) AS c FROM password_resets WHERE email = ? AND created_at > datetime('now', '-15 minutes')`).get(email)).c;
   if (recent >= RESET_MAX_REQUESTS) {
     return renderStep1({ error: 'Too many code requests for this email. Please wait 15 minutes and try again.' });
   }
 
   const code = String(crypto.randomInt(100000, 1000000));
-  db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE email = ? AND used_at IS NULL").run(email);
-  db.prepare(`INSERT INTO password_resets (user_id, email, code_hash, expires_at) VALUES (?, ?, ?, datetime('now', ?))`)
+  await db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE email = ? AND used_at IS NULL").run(email);
+  await db.prepare(`INSERT INTO password_resets (user_id, email, code_hash, expires_at) VALUES (?, ?, ?, datetime('now', ?))`)
     .run(user.id, email, hashResetCode(code), `+${RESET_TTL_MINUTES} minutes`);
 
   const mail = await sendMail({
@@ -284,7 +284,7 @@ router.post('/forgot-password', async (req, res) => {
 
   if (!mail.sent) {
     // Invalidate the code we just stored so a failed delivery cannot be replayed.
-    db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE email = ? AND used_at IS NULL").run(email);
+    await db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE email = ? AND used_at IS NULL").run(email);
     console.error('Password reset email could not be sent:', mail.reason || 'unknown');
     return renderStep1({
       error: 'We could not send the verification email right now. Please try again later or contact the Dean.'
@@ -339,7 +339,7 @@ router.post('/forgot-password/verify', [
 
   const invalidCode = () => renderStep2({ error: 'Invalid or expired verification code. Request a new one.' });
 
-  const reset = db.prepare(`
+  const reset = await db.prepare(`
     SELECT * FROM password_resets
     WHERE email = ? AND used_at IS NULL AND expires_at > datetime('now')
     ORDER BY id DESC
@@ -351,7 +351,7 @@ router.post('/forgot-password/verify', [
   }
 
   if (reset.attempts >= RESET_MAX_ATTEMPTS) {
-    db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE id = ?").run(reset.id);
+    await db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE id = ?").run(reset.id);
     return renderStep2({ error: 'Too many wrong attempts. Please request a new code.' });
   }
 
@@ -360,14 +360,14 @@ router.post('/forgot-password/verify', [
     Buffer.from(reset.code_hash, 'hex')
   );
   if (!matches) {
-    db.prepare('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?').run(reset.id);
+    await db.prepare('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?').run(reset.id);
     return invalidCode();
   }
 
   const passwordHash = await bcrypt.hash(req.body.password, 10);
-  db.prepare("UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL, updated_at = datetime('now') WHERE id = ?")
+  await db.prepare("UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL, updated_at = datetime('now') WHERE id = ?")
     .run(passwordHash, reset.user_id);
-  db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE email = ? AND used_at IS NULL").run(email);
+  await db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE email = ? AND used_at IS NULL").run(email);
 
   return res.redirect('/login?reset=1');
 });
@@ -435,11 +435,11 @@ router.post('/register', (req, res, next) => {
 
   try {
     // Check duplicates
-    const emailExists = db.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').get(email);
+    const emailExists = await db.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').get(email);
     if (emailExists) {
       return renderError('An account with this email already exists.');
     }
-    const noExists = db.prepare('SELECT id FROM students WHERE student_no = ?').get(studentNo);
+    const noExists = await db.prepare('SELECT id FROM students WHERE student_no = ?').get(studentNo);
     if (noExists) {
       return renderError('This Student ID number is already registered.');
     }
@@ -450,42 +450,42 @@ router.post('/register', (req, res, next) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const createUser = db.transaction(() => {
-      db.prepare('INSERT OR IGNORE INTO departments (code, name) VALUES (?, ?)')
+    const createUser = await db.transaction(async () => {
+      await db.prepare('INSERT OR IGNORE INTO departments (code, name) VALUES (?, ?)')
         .run(program.departmentCode, program.departmentName);
-      db.prepare(`
+      await db.prepare(`
         INSERT OR IGNORE INTO programs (code, name, department_id, total_units, total_years)
         VALUES (?, ?, (SELECT id FROM departments WHERE code = ?), ?, 4)
       `).run(program.code, program.name, program.departmentCode, program.totalUnits);
 
       // is_active = 0 until Dean approves
-      const result = db.prepare(`
+      const result = await db.prepare(`
         INSERT INTO users (email, password_hash, role, full_name, is_active)
         VALUES (?, ?, 'student', ?, 0)
       `).run(email, passwordHash, `${firstName} ${lastName}`);
 
-      const studentResult = db.prepare(`
+      const studentResult = await db.prepare(`
         INSERT INTO students (user_id, student_no, first_name, last_name, program_code, year_level, section, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, 'inactive')
       `).run(result.lastInsertRowid, studentNo, firstName, lastName, programCode, yearLevel, section);
 
       // Notify the dean of a pending registration
-      const deans = db.prepare("SELECT id FROM users WHERE role IN ('dean', 'admin')").all();
+      const deans = await db.prepare("SELECT id FROM users WHERE role IN ('dean', 'admin')").all();
       for (const d of deans) {
-        db.prepare(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'registration')`)
+        await db.prepare(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'registration')`)
           .run(d.id, 'New Student Registration', `${firstName} ${lastName} (${studentNo}) registered and is awaiting your approval.`);
       }
 
       return studentResult.lastInsertRowid;
     });
 
-    const studentId = createUser();
+    const studentId = await createUser();
 
     // Attach the optional registration photo (JPEG/PNG/WebP, <=5MB)
     if (req.file) {
       try {
         const photoUrl = saveProfileImage(req.file, 'student');
-        db.prepare("UPDATE students SET profile_picture = ?, picture_updated_at = datetime('now') WHERE id = ?")
+        await db.prepare("UPDATE students SET profile_picture = ?, picture_updated_at = datetime('now') WHERE id = ?")
           .run(photoUrl, studentId);
       } catch (photoErr) {
         console.error('Could not save registration photo:', photoErr.message);
@@ -521,7 +521,7 @@ router.post('/login', [
 
   try {
     // Find user (any active flag so we can distinguish pending accounts)
-    const user = db.prepare('SELECT * FROM users WHERE lower(email) = lower(?)').get(email);
+    const user = await db.prepare('SELECT * FROM users WHERE lower(email) = lower(?)').get(email);
 
     if (!user) {
       return res.render('auth/login', {
@@ -572,9 +572,9 @@ router.post('/login', [
       // Increment failed attempts
       const attempts = user.failed_login_attempts + 1;
       if (attempts >= 5) {
-        db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = datetime("now", "+30 minutes") WHERE id = ?').run(user.id);
+        await db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = datetime("now", "+30 minutes") WHERE id = ?').run(user.id);
       } else {
-        db.prepare('UPDATE users SET failed_login_attempts = ? WHERE id = ?').run(attempts, user.id);
+        await db.prepare('UPDATE users SET failed_login_attempts = ? WHERE id = ?').run(attempts, user.id);
       }
 
       return res.render('auth/login', {
@@ -586,7 +586,7 @@ router.post('/login', [
     }
 
     // Reset failed attempts
-    db.prepare("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login = datetime('now') WHERE id = ?").run(user.id);
+    await db.prepare("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login = datetime('now') WHERE id = ?").run(user.id);
 
     // Front-door gating: each portal field only accepts its own roles
     if (!(doorRoles[portal] || []).includes(user.role)) {
@@ -647,7 +647,7 @@ router.post('/login', [
 
 // GET /2fa/setup
 router.get('/2fa/setup', requireAuth, async (req, res) => {
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
   if (user.totp_enabled) {
     return res.render('auth/2fa-setup', {
@@ -665,7 +665,7 @@ router.get('/2fa/setup', requireAuth, async (req, res) => {
   const otpauth = authenticator.keyuri(user.email, 'PCC Student Portal', secret);
 
   // Store secret temporarily (not yet enabled)
-  db.prepare('UPDATE users SET totp_secret = ? WHERE id = ?').run(secret, user.id);
+  await db.prepare('UPDATE users SET totp_secret = ? WHERE id = ?').run(secret, user.id);
 
   // Generate QR code (graceful fallback if QR rendering is unavailable)
   const qrDataUrl = await generateQRDataUrl(otpauth);
@@ -685,7 +685,7 @@ router.post('/2fa/verify-setup', requireAuth, [
   body('code').isLength({ min: 6, max: 6 })
 ], async (req, res) => {
   const { code } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
   const isValid = authenticator.verify({ token: code, secret: user.totp_secret });
 
@@ -702,7 +702,7 @@ router.post('/2fa/verify-setup', requireAuth, [
   }
 
   // Enable 2FA
-  db.prepare('UPDATE users SET totp_enabled = 1 WHERE id = ?').run(user.id);
+  await db.prepare('UPDATE users SET totp_enabled = 1 WHERE id = ?').run(user.id);
 
   res.render('auth/2fa-setup', {
     layout: false,
@@ -740,7 +740,7 @@ router.post('/2fa/verify', [
 
   try {
     const payload = jwt.verify(tempToken, ACCESS_SECRET);
-    const user = db.prepare('SELECT * FROM users WHERE id = ? AND totp_enabled = 1').get(payload.id);
+    const user = await db.prepare('SELECT * FROM users WHERE id = ? AND totp_enabled = 1').get(payload.id);
 
     if (!user) {
       return res.redirect('/login');
@@ -764,7 +764,7 @@ router.post('/2fa/verify', [
     setTokenCookies(res, accessToken, refreshToken, jarForRole(user.role));
 
     // Update last login
-    db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
+    await db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
 
     // Redirect based on role
     return res.redirect(homeByRole[user.role] || '/dean/dashboard');
@@ -802,14 +802,14 @@ function loginDoorForPath(next) {
   return '/login';
 }
 
-function findRefreshSession(req, next) {
+async function findRefreshSession(req, next) {
   for (const jar of jarsForNext(next)) {
     const token = req.cookies?.[JAR_COOKIES[jar].refresh];
     if (!token) continue;
     try {
       const payload = jwt.verify(token, REFRESH_SECRET);
       if (payload.type !== 'refresh' || payload.step) continue;
-      const user = db.prepare('SELECT id, email, role, full_name, is_active FROM users WHERE id = ?').get(payload.id);
+      const user = await db.prepare('SELECT id, email, role, full_name, is_active FROM users WHERE id = ?').get(payload.id);
       if (!user || !user.is_active) continue;
       return { jar, user };
     } catch (err) { /* expired/invalid → try the next jar */ }
@@ -824,9 +824,9 @@ function issueRefreshedCookies(res, session) {
 
 // GET /auth/refresh?next=/student/dashboard — used when a page notices the
 // access token is gone; refreshes, then sends the browser back.
-router.get('/auth/refresh', (req, res) => {
+router.get('/auth/refresh', async (req, res) => {
   const next = safeNextPath(req.query.next);
-  const session = findRefreshSession(req, next);
+  const session = await findRefreshSession(req, next);
   if (!session) {
     return res.redirect(loginDoorForPath(next));
   }
@@ -835,9 +835,9 @@ router.get('/auth/refresh', (req, res) => {
 });
 
 // POST /auth/refresh — background keep-alive from the page.
-router.post('/auth/refresh', (req, res) => {
+router.post('/auth/refresh', async (req, res) => {
   const next = safeNextPath(req.body && req.body.next ? req.body.next : req.query.next);
-  const session = findRefreshSession(req, next);
+  const session = await findRefreshSession(req, next);
   if (!session) {
     return res.status(401).json({ ok: false });
   }

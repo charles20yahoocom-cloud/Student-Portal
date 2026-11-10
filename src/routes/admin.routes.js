@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const db = require('../config/database');
+const db = require('../config/database-runtime');
 const { requireAuth, requireRole } = require('../middleware/authenticate');
 
 // All admin routes require admin role
@@ -9,13 +9,13 @@ router.use(requireAuth);
 router.use(requireRole('admin'));
 
 // GET /admin/dashboard
-router.get('/dashboard', (req, res) => {
-  const totalStudents = db.prepare('SELECT COUNT(*) as count FROM students').get().count;
-  const totalFaculty = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'faculty'").get().count;
-  const totalDean = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'dean'").get().count;
-  const totalAdmins = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get().count;
+router.get('/dashboard', async (req, res) => {
+  const totalStudents = (await db.prepare('SELECT COUNT(*) as count FROM students').get()).count;
+  const totalFaculty = (await db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'faculty'").get()).count;
+  const totalDean = (await db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'dean'").get()).count;
+  const totalAdmins = (await db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get()).count;
 
-  const recentStudents = db.prepare(`
+  const recentStudents = await db.prepare(`
     SELECT s.*, u.email, u.created_at as joined_at
     FROM students s JOIN users u ON u.id = s.user_id
     WHERE u.role = 'student'
@@ -34,22 +34,22 @@ router.get('/dashboard', (req, res) => {
 });
 
 // GET /admin/accounts (staff list + create form)
-router.get('/accounts', (req, res) => {
-  const staff = db.prepare(`
+router.get('/accounts', async (req, res) => {
+  const staff = await db.prepare(`
     SELECT id, email, full_name, role, is_active, last_login, created_at
     FROM users
     WHERE role IN ('dean', 'faculty', 'registrar', 'admin')
     ORDER BY role, full_name
   `).all();
 
-  const departments = db.prepare(`
+  const departments = await db.prepare(`
     SELECT d.*, u.full_name AS hod_name
     FROM departments d
     LEFT JOIN users u ON d.hod_user_id = u.id
     ORDER BY d.code
   `).all();
 
-  const deans = db.prepare(`
+  const deans = await db.prepare(`
     SELECT id, full_name, email FROM users
     WHERE role = 'dean' AND is_active = 1
     ORDER BY full_name
@@ -85,13 +85,13 @@ router.post('/accounts', async (req, res) => {
   }
 
   try {
-    const emailExists = db.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').get(email);
+    const emailExists = await db.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').get(email);
     if (emailExists) {
       return res.redirect('/admin/accounts?error=' + encodeURIComponent('An account with that email already exists.'));
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    db.prepare(
+    await db.prepare(
       'INSERT INTO users (email, password_hash, role, full_name, is_active) VALUES (?, ?, ?, ?, 1)'
     ).run(email, passwordHash, role, full_name);
 
@@ -103,30 +103,30 @@ router.post('/accounts', async (req, res) => {
 });
 
 // POST /admin/accounts/:id/toggle (activate / deactivate)
-router.post('/accounts/:id/toggle', (req, res) => {
-  const account = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+router.post('/accounts/:id/toggle', async (req, res) => {
+  const account = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
   if (account && account.role !== 'admin') {
-    db.prepare('UPDATE users SET is_active = ? WHERE id = ?').run(account.is_active ? 0 : 1, account.id);
+    await db.prepare('UPDATE users SET is_active = ? WHERE id = ?').run(account.is_active ? 0 : 1, account.id);
   }
   res.redirect('/admin/accounts');
 });
 
 // POST /admin/hod (assign or clear a department head — dean accounts only)
-router.post('/hod', (req, res) => {
+router.post('/hod', async (req, res) => {
   const departmentId = parseInt(req.body.department_id, 10);
   const userId = req.body.user_id ? parseInt(req.body.user_id, 10) : null;
 
-  const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(departmentId);
+  const dept = await db.prepare('SELECT * FROM departments WHERE id = ?').get(departmentId);
   if (!dept) {
     return res.redirect('/admin/accounts?error=' + encodeURIComponent('Department not found.'));
   }
   if (userId) {
-    const u = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const u = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     if (!u || u.role !== 'dean') {
       return res.redirect('/admin/accounts?error=' + encodeURIComponent('Department head must be a dean account.'));
     }
   }
-  db.prepare('UPDATE departments SET hod_user_id = ? WHERE id = ?').run(userId, departmentId);
+  await db.prepare('UPDATE departments SET hod_user_id = ? WHERE id = ?').run(userId, departmentId);
   res.redirect('/admin/accounts?success=' + encodeURIComponent(`Head updated for ${dept.code}.`));
 });
 

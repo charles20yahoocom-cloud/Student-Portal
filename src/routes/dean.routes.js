@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const bcrypt = require('bcrypt');
-const db = require('../config/database');
+const db = require('../config/database-runtime');
 const { requireAuth, requireRole } = require('../middleware/authenticate');
 
 // CSV imports stay in memory: bounded size, no temp files on disk to clean up.
@@ -18,12 +18,12 @@ router.use(requireRole('dean', 'admin'));
 // Department scoping: role 'dean' only sees programs of departments they head
 // (departments.hod_user_id). Admin sees everything (null = unscoped).
 // A dean heading nothing gets an empty scope (fail closed).
-function deanScope(req) {
+async function deanScope(req) {
   if (req.user.role !== 'dean') return null;
-  const deptIds = db.prepare('SELECT id FROM departments WHERE hod_user_id = ?').all(req.user.id).map(r => r.id);
+  const deptIds = (await db.prepare('SELECT id FROM departments WHERE hod_user_id = ?').all(req.user.id)).map(r => r.id);
   if (!deptIds.length) return { programCodes: [] };
   const ph = deptIds.map(() => '?').join(',');
-  const codes = db.prepare(`SELECT code FROM programs WHERE department_id IN (${ph})`).all(...deptIds).map(r => r.code);
+  const codes = (await db.prepare(`SELECT code FROM programs WHERE department_id IN (${ph})`).all(...deptIds)).map(r => r.code);
   return { programCodes: codes };
 }
 
@@ -55,49 +55,49 @@ function denyCrossDept(res, req) {
 }
 
 // Department ids a dean heads (null for unscoped admins, [] when heading none).
-function deanDeptIds(req) {
+async function deanDeptIds(req) {
   if (req.user.role !== 'dean') return null;
-  return db.prepare('SELECT id FROM departments WHERE hod_user_id = ?').all(req.user.id).map(r => r.id);
+  return (await db.prepare('SELECT id FROM departments WHERE hod_user_id = ?').all(req.user.id)).map(r => r.id);
 }
 
 // Departments a dean may manage (all departments for admins, fail-closed for deans).
-function departmentsForDean(req) {
-  const ids = deanDeptIds(req);
-  if (ids === null) return db.prepare('SELECT id, code, name FROM departments ORDER BY code').all();
+async function departmentsForDean(req) {
+  const ids = await deanDeptIds(req);
+  if (ids === null) return await db.prepare('SELECT id, code, name FROM departments ORDER BY code').all();
   if (!ids.length) return [];
   const ph = ids.map(() => '?').join(',');
-  return db.prepare(`SELECT id, code, name FROM departments WHERE id IN (${ph}) ORDER BY code`).all(...ids);
+  return await db.prepare(`SELECT id, code, name FROM departments WHERE id IN (${ph}) ORDER BY code`).all(...ids);
 }
 
 // Programs a dean may create offerings for (all programs for admins).
-function programsForDean(req) {
-  const scope = deanScope(req);
-  if (!scope) return db.prepare('SELECT code, name, department_id FROM programs ORDER BY code').all();
+async function programsForDean(req) {
+  const scope = await deanScope(req);
+  if (!scope) return await db.prepare('SELECT code, name, department_id FROM programs ORDER BY code').all();
   if (!scope.programCodes.length) return [];
   const ph = scope.programCodes.map(() => '?').join(',');
-  return db.prepare(`SELECT code, name, department_id FROM programs WHERE code IN (${ph}) ORDER BY code`).all(...scope.programCodes);
+  return await db.prepare(`SELECT code, name, department_id FROM programs WHERE code IN (${ph}) ORDER BY code`).all(...scope.programCodes);
 }
 
 // Active teachers a dean may assign. Deans see their own departments' teachers
 // plus teachers with no department yet (so new hires can be picked up).
-function facultyForDean(req) {
+async function facultyForDean(req) {
   const base = 'SELECT id, full_name, email, department_id FROM users WHERE role = \'faculty\' AND is_active = 1';
-  const ids = deanDeptIds(req);
-  if (ids === null) return db.prepare(base + ' ORDER BY full_name').all();
-  if (!ids.length) return db.prepare(base + ' AND department_id IS NULL ORDER BY full_name').all();
+  const ids = await deanDeptIds(req);
+  if (ids === null) return await db.prepare(base + ' ORDER BY full_name').all();
+  if (!ids.length) return await db.prepare(base + ' AND department_id IS NULL ORDER BY full_name').all();
   const ph = ids.map(() => '?').join(',');
-  return db.prepare(`${base} AND (department_id IN (${ph}) OR department_id IS NULL) ORDER BY full_name`).all(...ids);
+  return await db.prepare(`${base} AND (department_id IN (${ph}) OR department_id IS NULL) ORDER BY full_name`).all(...ids);
 }
 
 // GET /dean/dashboard
-router.get('/dashboard', (req, res) => {
+router.get('/dashboard', async (req, res) => {
   // Get active semester
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
-  const scope = deanScope(req);
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+  const scope = await deanScope(req);
 
   // Get course offerings for current semester
   const off = programFilter(scope, 'co.program_code');
-  const offerings = activeSemester ? db.prepare(`
+  const offerings = activeSemester ? await db.prepare(`
     SELECT co.*, 
       (SELECT COUNT(*) FROM enrollments e WHERE e.offering_id = co.id AND e.status = 'enrolled') as enrolled_count,
       (SELECT COUNT(*) FROM enrollments e 
@@ -110,13 +110,13 @@ router.get('/dashboard', (req, res) => {
 
   // Get total students
   const st = programFilter(scope, 'program_code');
-  const totalStudents = db.prepare(
+  const totalStudents = await db.prepare(
     `SELECT COUNT(*) as count FROM students WHERE status = 'active'${st.clause}`
   ).get(...st.params);
 
   // Get at-risk students (GPA < 2.0)
   const ar = programFilter(scope, 's.program_code');
-  const atRiskStudents = db.prepare(`
+  const atRiskStudents = await db.prepare(`
     SELECT s.*, u.full_name,
       AVG(g.grade_points) as avg_gpa
     FROM students s
@@ -139,10 +139,10 @@ router.get('/dashboard', (req, res) => {
 });
 
 // GET /dean/students
-router.get('/students', (req, res) => {
-  const scope = deanScope(req);
+router.get('/students', async (req, res) => {
+  const scope = await deanScope(req);
   const f = programFilter(scope, 's.program_code');
-  const students = db.prepare(`
+  const students = await db.prepare(`
     SELECT s.*, u.full_name, u.email
     FROM students s
     JOIN users u ON s.user_id = u.id
@@ -158,13 +158,13 @@ router.get('/students', (req, res) => {
 });
 
 // GET /dean/grade-entry
-router.get('/grade-entry', (req, res) => {
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
-  const scope = deanScope(req);
+router.get('/grade-entry', async (req, res) => {
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+  const scope = await deanScope(req);
 
   // Get course offerings
   const off = programFilter(scope, 'co.program_code');
-  const offerings = activeSemester ? db.prepare(`
+  const offerings = activeSemester ? await db.prepare(`
     SELECT co.*,
       (SELECT COUNT(*) FROM enrollments e WHERE e.offering_id = co.id AND e.status = 'enrolled') as enrolled_count
     FROM course_offerings co
@@ -181,16 +181,16 @@ router.get('/grade-entry', (req, res) => {
 });
 
 // GET /dean/grade-entry/:offeringId
-router.get('/grade-entry/:offeringId', (req, res) => {
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
-  const offering = db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.offeringId);
+router.get('/grade-entry/:offeringId', async (req, res) => {
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+  const offering = await db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.offeringId);
 
-  if (!offering || !inScope(deanScope(req), offering.program_code)) {
+  if (!offering || !inScope(await deanScope(req), offering.program_code)) {
     return res.redirect('/dean/grade-entry');
   }
 
   // Get enrolled students with existing grades
-  const students = db.prepare(`
+  const students = await db.prepare(`
     SELECT e.id as enrollment_id, e.student_id, s.student_no, s.first_name, s.last_name,
       g.id as grade_id, g.grade_value, g.grade_points, g.remarks
     FROM enrollments e
@@ -210,19 +210,19 @@ router.get('/grade-entry/:offeringId', (req, res) => {
 });
 
 // POST /dean/grades/batch
-router.post('/grades/batch', (req, res) => {
+router.post('/grades/batch', async (req, res) => {
   const { offeringId, grades } = req.body;
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
 
   if (!activeSemester) {
     return res.status(400).json({ error: 'No active semester' });
   }
 
-  const offering = db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(offeringId);
+  const offering = await db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(offeringId);
   if (!offering) {
     return res.status(404).json({ error: 'Course offering not found' });
   }
-  if (!inScope(deanScope(req), offering.program_code)) {
+  if (!inScope(await deanScope(req), offering.program_code)) {
     return res.status(403).json({ error: 'Outside your department' });
   }
   if (Number(offering.semester_id) !== Number(activeSemester.id)) {
@@ -263,7 +263,7 @@ router.post('/grades/batch', (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  const transaction = db.transaction(() => {
+  const transaction = await db.transaction(async () => {
     let saved = 0;
     for (const grade of grades) {
       if (!grade || typeof grade !== 'object') continue;
@@ -272,16 +272,16 @@ router.post('/grades/batch', (req, res) => {
 
       // The enrollment must belong to this section AND this student. This stops
       // a crafted POST from writing grades into another section or student.
-      const enrollment = db.prepare(`
+      const enrollment = await db.prepare(`
         SELECT id, student_id FROM enrollments
         WHERE id = ? AND offering_id = ? AND student_id = ?
       `).get(grade.enrollmentId, offering.id, grade.studentId);
       if (!enrollment) continue;
 
       // Get old grade for audit
-      const oldGrade = db.prepare('SELECT grade_value FROM grades WHERE enrollment_id = ?').get(enrollment.id);
+      const oldGrade = await db.prepare('SELECT grade_value FROM grades WHERE enrollment_id = ?').get(enrollment.id);
 
-      insertGrade.run(
+      await insertGrade.run(
         enrollment.id,
         enrollment.student_id,
         offering.course_code,
@@ -294,7 +294,7 @@ router.post('/grades/batch', (req, res) => {
       );
 
       // Audit log
-      insertAudit.run(
+      await insertAudit.run(
         enrollment.student_id,
         offering.course_code,
         activeSemester.id,
@@ -309,7 +309,7 @@ router.post('/grades/batch', (req, res) => {
   });
 
   try {
-    const saved = transaction();
+    const saved = await transaction();
     res.json({ success: true, saved });
   } catch (err) {
     console.error('Batch grade save error:', err);
@@ -367,7 +367,7 @@ router.post('/grades/import', (req, res, next) => {
 // POST /dean/grades/release
 // Releasing grades affects every student in the college, so only an admin may
 // do it (deans can encode grades but not publish them).
-router.post('/grades/release', (req, res) => {
+router.post('/grades/release', async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only an administrator can release grades' });
   }
@@ -379,7 +379,7 @@ router.post('/grades/release', (req, res) => {
   if (!Number.isInteger(semesterId)) {
     return res.status(400).json({ error: 'Choose a valid semester' });
   }
-  const semester = db.prepare('SELECT id FROM semesters WHERE id = ?').get(semesterId);
+  const semester = await db.prepare('SELECT id FROM semesters WHERE id = ?').get(semesterId);
   if (!semester) {
     return res.status(400).json({ error: 'Choose a valid semester' });
   }
@@ -392,18 +392,18 @@ router.post('/grades/release', (req, res) => {
 
   try {
     if (releaseType === 'scheduled') {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO grade_releases (semester_id, release_type, scheduled_at, released_by, status)
         VALUES (?, 'scheduled', ?, ?, 'scheduled')
       `).run(semesterId, scheduledAt, req.user.id);
     } else {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO grade_releases (semester_id, release_type, released_at, released_by, status)
         VALUES (?, 'manual', datetime('now'), ?, 'released')
       `).run(semesterId, req.user.id);
 
       // Create notifications for all active students
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO notifications (user_id, title, message, type)
         SELECT s.user_id, 'Grades Released', 'Your grades for this semester have been released!', 'grade_release'
         FROM students s WHERE s.status = 'active'
@@ -418,19 +418,19 @@ router.post('/grades/release', (req, res) => {
 });
 
 // GET /dean/prospectus/:studentId
-router.get('/prospectus/:studentId', (req, res) => {
-  const student = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.studentId);
+router.get('/prospectus/:studentId', async (req, res) => {
+  const student = await db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.studentId);
 
   if (!student) {
     return res.redirect('/dean/students');
   }
 
-  if (!inScope(deanScope(req), student.program_code)) {
+  if (!inScope(await deanScope(req), student.program_code)) {
     return denyCrossDept(res, req);
   }
 
   // Grades keyed by course code (most recent wins)
-  const gradeRows = db.prepare(`
+  const gradeRows = await db.prepare(`
     SELECT g.*, s.name as semester_name, s.school_year
     FROM grades g
     JOIN semesters s ON g.semester_id = s.id
@@ -443,10 +443,10 @@ router.get('/prospectus/:studentId', (req, res) => {
   // Resolve the student's curriculum template; fall back to the official
   // program template so every student shows the full prospectus.
   let templateId = null;
-  const assigned = db.prepare('SELECT template_id FROM student_curriculum WHERE student_id = ?').get(student.id);
+  const assigned = await db.prepare('SELECT template_id FROM student_curriculum WHERE student_id = ?').get(student.id);
   if (assigned) templateId = assigned.template_id;
   if (!templateId) {
-    const tpl = db.prepare(`
+    const tpl = await db.prepare(`
       SELECT id FROM curriculum_templates
       WHERE program_code = ?
         AND EXISTS (SELECT 1 FROM curriculum_items ci WHERE ci.template_id = curriculum_templates.id)
@@ -455,13 +455,13 @@ router.get('/prospectus/:studentId', (req, res) => {
     templateId = tpl ? tpl.id : null;
   }
 
-  const curriculum = templateId ? db.prepare(`
+  const curriculum = templateId ? await db.prepare(`
     SELECT * FROM curriculum_items
     WHERE template_id = ?
     ORDER BY semester_number, display_order
   `).all(templateId) : [];
 
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1 ORDER BY id DESC LIMIT 1').get();
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1 ORDER BY id DESC LIMIT 1').get();
 
   res.render('dean/prospectus', {
     title: `Prospectus - ${student.first_name} ${student.last_name} - PCC Student Portal`,
@@ -474,10 +474,10 @@ router.get('/prospectus/:studentId', (req, res) => {
 });
 
 // GET /dean/year-levels (browse every year level: subjects + sections)
-router.get('/year-levels', (req, res) => {
-  const scope = deanScope(req);
+router.get('/year-levels', async (req, res) => {
+  const scope = await deanScope(req);
   const tp = programFilter(scope, 't.program_code');
-  const templates = db.prepare(`
+  const templates = await db.prepare(`
     SELECT t.program_code, t.program_name, t.id as template_id
     FROM curriculum_templates t
     WHERE t.id = (SELECT MAX(id) FROM curriculum_templates c WHERE c.program_code = t.program_code)
@@ -485,26 +485,26 @@ router.get('/year-levels', (req, res) => {
     ORDER BY t.program_code
   `).all(...tp.params);
 
-  const yearStats = [1, 2, 3, 4].map(year => {
+  const yearStats = [1, 2, 3, 4].map(async year => {
     const sc = programFilter(scope, 'program_code');
     const sc2 = programFilter(scope, 'program_code');
     return {
       year,
-      student_count: db.prepare(
+      student_count: (await db.prepare(
         `SELECT COUNT(*) c FROM students WHERE status = 'active' AND year_level = ?${sc.clause}`
-      ).get(year, ...sc.params).c,
-      section_count: db.prepare(`
+      ).get(year, ...sc.params)).c,
+      section_count: (await db.prepare(`
         SELECT COUNT(DISTINCT upper(trim(section))) c FROM students
         WHERE status = 'active' AND year_level = ? AND section IS NOT NULL AND trim(section) <> ''${sc2.clause}
-      `).get(year, ...sc2.params).c
+      `).get(year, ...sc2.params)).c
     };
   });
 
   const programs = templates.map(t => ({
     program_code: t.program_code,
     program_name: t.program_name,
-    years: [1, 2, 3, 4].map(year => {
-      const stat = db.prepare(`
+    years: [1, 2, 3, 4].map(async year => {
+      const stat = await db.prepare(`
         SELECT COUNT(*) as subjects, COALESCE(SUM(credits), 0) as units
         FROM curriculum_items WHERE template_id = ? AND semester_number IN (?, ?)
       `).get(t.template_id, year * 2 - 1, year * 2);
@@ -521,17 +521,17 @@ router.get('/year-levels', (req, res) => {
 });
 
 // GET /dean/year-levels/:year (subjects required + sections for one year level)
-router.get('/year-levels/:year', (req, res) => {
+router.get('/year-levels/:year', async (req, res) => {
   const year = parseInt(req.params.year, 10);
   if (isNaN(year) || year < 1 || year > 4) {
     return res.redirect('/dean/year-levels');
   }
 
   const programCode = String(req.query.program || '').toUpperCase();
-  const scope = deanScope(req);
+  const scope = await deanScope(req);
 
   const ap = programFilter(scope, 't.program_code');
-  const allPrograms = db.prepare(`
+  const allPrograms = await db.prepare(`
     SELECT DISTINCT t.program_code FROM curriculum_templates t
     WHERE t.id = (SELECT MAX(id) FROM curriculum_templates c WHERE c.program_code = t.program_code)
       AND EXISTS (SELECT 1 FROM curriculum_items ci WHERE ci.template_id = t.id)${ap.clause}
@@ -540,15 +540,15 @@ router.get('/year-levels/:year', (req, res) => {
 
   const activeTemplate = allPrograms.find(p => p.program_code === programCode) || allPrograms[0];
   const active = activeTemplate
-    ? db.prepare('SELECT * FROM curriculum_templates WHERE program_code = ? ORDER BY id DESC LIMIT 1').get(activeTemplate.program_code)
+    ? await db.prepare('SELECT * FROM curriculum_templates WHERE program_code = ? ORDER BY id DESC LIMIT 1').get(activeTemplate.program_code)
     : null;
 
-  const sem1 = active ? db.prepare(`
+  const sem1 = active ? await db.prepare(`
     SELECT course_code, course_name, credits, course_type FROM curriculum_items
     WHERE template_id = ? AND semester_number = ? ORDER BY display_order, course_code
   `).all(active.id, year * 2 - 1) : [];
 
-  const sem2 = active ? db.prepare(`
+  const sem2 = active ? await db.prepare(`
     SELECT course_code, course_name, credits, course_type FROM curriculum_items
     WHERE template_id = ? AND semester_number = ? ORDER BY display_order, course_code
   `).all(active.id, year * 2) : [];
@@ -556,17 +556,17 @@ router.get('/year-levels/:year', (req, res) => {
   const ys = programFilter(scope, 'program_code');
   const ys2 = programFilter(scope, 'program_code');
   const yearStat = {
-    student_count: db.prepare(
+    student_count: (await db.prepare(
       `SELECT COUNT(*) c FROM students WHERE status = 'active' AND year_level = ?${ys.clause}`
-    ).get(year, ...ys.params).c,
-    section_count: db.prepare(`
+    ).get(year, ...ys.params)).c,
+    section_count: (await db.prepare(`
       SELECT COUNT(DISTINCT upper(trim(section))) c FROM students
       WHERE status = 'active' AND year_level = ? AND section IS NOT NULL AND trim(section) <> ''${ys2.clause}
-    `).get(year, ...ys2.params).c
+    `).get(year, ...ys2.params)).c
   };
 
   const sec = programFilter(scope, 'program_code');
-  const sections = db.prepare(`
+  const sections = await db.prepare(`
     SELECT upper(trim(section)) as section, COUNT(*) as student_count
     FROM students
     WHERE status = 'active' AND year_level = ? AND section IS NOT NULL AND trim(section) <> ''${sec.clause}
@@ -574,11 +574,11 @@ router.get('/year-levels/:year', (req, res) => {
     ORDER BY upper(trim(section))
   `).all(year, ...sec.params);
 
-  const sectionsWithRosters = sections.map(s => {
+  const sectionsWithRosters = sections.map(async s => {
     const rs = programFilter(scope, 's.program_code');
     return {
       ...s,
-      students: db.prepare(`
+      students: await db.prepare(`
         SELECT s.id, s.student_no, s.first_name, s.middle_name, s.last_name, s.gender, u.full_name
         FROM students s
         JOIN users u ON s.user_id = u.id
@@ -591,12 +591,12 @@ router.get('/year-levels/:year', (req, res) => {
 
   const un = programFilter(scope, 'program_code');
   const un2 = programFilter(scope, 's.program_code');
-  const unassigned = db.prepare(`
+  const unassigned = (await db.prepare(`
     SELECT COUNT(*) c FROM students
     WHERE status = 'active' AND year_level = ? AND (section IS NULL OR trim(section) = '')${un.clause}
-  `).get(year, ...un.params).c;
+  `).get(year, ...un.params)).c;
 
-  const unassignedStudents = db.prepare(`
+  const unassignedStudents = await db.prepare(`
     SELECT s.id, s.student_no, u.full_name, s.gender
     FROM students s
     JOIN users u ON s.user_id = u.id
@@ -622,12 +622,12 @@ router.get('/year-levels/:year', (req, res) => {
 });
 
 // GET /dean/assignments - assign course sections to instructors
-router.get('/assignments', (req, res) => {
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
-  const scope = deanScope(req);
+router.get('/assignments', async (req, res) => {
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+  const scope = await deanScope(req);
   const f = programFilter(scope, 'co.program_code');
 
-  const offerings = activeSemester ? db.prepare(`
+  const offerings = activeSemester ? await db.prepare(`
     SELECT co.*,
       u.full_name AS instructor_name,
       u.email AS instructor_email,
@@ -639,15 +639,15 @@ router.get('/assignments', (req, res) => {
   `).all(activeSemester.id, ...f.params) : [];
 
   // Teachers in scope (deans: own departments + unassigned; admins: all).
-  const faculty = facultyForDean(req);
-  const programs = programsForDean(req);
-  const departments = departmentsForDean(req);
+  const faculty = await facultyForDean(req);
+  const programs = await programsForDean(req);
+  const departments = await departmentsForDean(req);
 
   // Curriculum suggestions for the "Add Section" form.
   let curriculumCourses = [];
   if (programs.length) {
     const ph = programs.map(() => '?').join(',');
-    curriculumCourses = db.prepare(`
+    curriculumCourses = await db.prepare(`
       SELECT DISTINCT ci.course_code AS code, ci.course_name AS name, ci.credits, ct.program_code
       FROM curriculum_items ci
       JOIN curriculum_templates ct ON ct.id = ci.template_id
@@ -672,8 +672,8 @@ router.get('/assignments', (req, res) => {
 
 // POST /dean/assignments/offerings - create a course section for the active semester
 // (declared before /assignments/:offeringId so "offerings" is not read as an id)
-router.post('/assignments/offerings', (req, res) => {
-  const activeSemester = db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
+router.post('/assignments/offerings', async (req, res) => {
+  const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
   if (!activeSemester) {
     return res.redirect('/dean/assignments?error=' + encodeURIComponent('Activate a semester before adding sections.'));
   }
@@ -709,12 +709,12 @@ router.post('/assignments/offerings', (req, res) => {
   if (maxEnrollment !== null && (!Number.isInteger(maxEnrollment) || maxEnrollment < 1 || maxEnrollment > 500)) {
     return fail('Max enrollment must be a whole number from 1 to 500.');
   }
-  if (!inScope(deanScope(req), program)) {
+  if (!inScope(await deanScope(req), program)) {
     return denyCrossDept(res, req);
   }
 
   try {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO course_offerings (course_code, course_name, section, semester_id, instructor_id, credits, max_enrollment, program_code)
       VALUES (?, ?, ?, ?, NULL, ?, ?, ?)
     `).run(code, name, section, activeSemester.id, credits, maxEnrollment, program);
@@ -730,52 +730,52 @@ router.post('/assignments/offerings', (req, res) => {
 });
 
 // POST /dean/assignments/offerings/:id/delete - remove an empty section
-router.post('/assignments/offerings/:id/delete', (req, res) => {
-  const offering = db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.id);
+router.post('/assignments/offerings/:id/delete', async (req, res) => {
+  const offering = await db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.id);
   if (!offering) {
     return res.redirect('/dean/assignments?error=' + encodeURIComponent('Course section not found.'));
   }
-  if (!inScope(deanScope(req), offering.program_code)) {
+  if (!inScope(await deanScope(req), offering.program_code)) {
     return denyCrossDept(res, req);
   }
 
-  const enrolled = db.prepare("SELECT COUNT(*) as count FROM enrollments WHERE offering_id = ? AND status = 'enrolled'").get(offering.id).count;
+  const enrolled = (await db.prepare("SELECT COUNT(*) as count FROM enrollments WHERE offering_id = ? AND status = 'enrolled'").get(offering.id)).count;
   if (enrolled > 0) {
     return res.redirect('/dean/assignments?error=' + encodeURIComponent(
       `Cannot delete ${offering.course_code} Sec. ${offering.section}: ${enrolled} student${enrolled === 1 ? ' is' : 's are'} still enrolled.`
     ));
   }
 
-  db.prepare('DELETE FROM course_offerings WHERE id = ?').run(offering.id);
+  await db.prepare('DELETE FROM course_offerings WHERE id = ?').run(offering.id);
   res.redirect('/dean/assignments?success=' + encodeURIComponent(`${offering.course_code} Sec. ${offering.section} deleted.`));
 });
 
 // POST /dean/assignments/:offeringId - set or clear the instructor for a section
-router.post('/assignments/:offeringId', (req, res) => {
-  const offering = db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.offeringId);
+router.post('/assignments/:offeringId', async (req, res) => {
+  const offering = await db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.offeringId);
   if (!offering) {
     return res.redirect('/dean/assignments?error=' + encodeURIComponent('Course section not found.'));
   }
-  if (!inScope(deanScope(req), offering.program_code)) {
+  if (!inScope(await deanScope(req), offering.program_code)) {
     return denyCrossDept(res, req);
   }
 
   const raw = String(req.body.instructor_id || '').trim();
   let instructor = null;
   if (raw) {
-    instructor = db.prepare("SELECT id, full_name, is_active, department_id FROM users WHERE id = ? AND role = 'faculty'").get(raw);
+    instructor = await db.prepare("SELECT id, full_name, is_active, department_id FROM users WHERE id = ? AND role = 'faculty'").get(raw);
     if (!instructor) {
       return res.redirect('/dean/assignments?error=' + encodeURIComponent('Choose a valid instructor.'));
     }
     if (!instructor.is_active) {
       return res.redirect('/dean/assignments?error=' + encodeURIComponent('That instructor account is deactivated.'));
     }
-    if (!facultyForDean(req).some(f => f.id === instructor.id)) {
+    if (!(await facultyForDean(req)).some(f => f.id === instructor.id)) {
       return res.redirect('/dean/assignments?error=' + encodeURIComponent('That instructor belongs to another department.'));
     }
   }
 
-  db.prepare('UPDATE course_offerings SET instructor_id = ? WHERE id = ?')
+  await db.prepare('UPDATE course_offerings SET instructor_id = ? WHERE id = ?')
     .run(instructor ? instructor.id : null, offering.id);
 
   const label = `${offering.course_code} Sec. ${offering.section}`;
@@ -786,10 +786,10 @@ router.post('/assignments/:offeringId', (req, res) => {
 });
 
 // GET /dean/accounts
-router.get('/accounts', (req, res) => {
+router.get('/accounts', async (req, res) => {
   // Students awaiting approval (role student + is_active 0)
-  const ps = programFilter(deanScope(req), 's.program_code');
-  const pendingStudents = db.prepare(`
+  const ps = programFilter(await deanScope(req), 's.program_code');
+  const pendingStudents = await db.prepare(`
     SELECT s.id as student_id, s.student_no, s.first_name, s.last_name, s.program_code, s.year_level, s.section,
       u.id as user_id, u.email, u.created_at
     FROM users u
@@ -800,11 +800,11 @@ router.get('/accounts', (req, res) => {
 
   // Staff accounts: deans see their own department's teachers (plus unassigned ones)
   // and the usual dean/admin accounts; admins see everyone.
-  const departments = departmentsForDean(req);
-  const deptIds = deanDeptIds(req);
+  const departments = await departmentsForDean(req);
+  const deptIds = await deanDeptIds(req);
   let staff;
   if (deptIds === null) {
-    staff = db.prepare(`
+    staff = await db.prepare(`
       SELECT u.id, u.email, u.full_name, u.role, u.is_active, u.created_at,
         u.department_id, d.code AS department_code, d.name AS department_name
       FROM users u
@@ -817,7 +817,7 @@ router.get('/accounts', (req, res) => {
     const facultyClause = deptIds.length
       ? `(u.role = 'faculty' AND (u.department_id IS NULL OR u.department_id IN (${ph})))`
       : "(u.role = 'faculty' AND u.department_id IS NULL)";
-    staff = db.prepare(`
+    staff = await db.prepare(`
       SELECT u.id, u.email, u.full_name, u.role, u.is_active, u.created_at,
         u.department_id, d.code AS department_code, d.name AS department_name
       FROM users u
@@ -844,7 +844,7 @@ router.post('/accounts/teachers', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const rawDept = String(req.body.department_id || '').trim();
   const departmentId = rawDept ? parseInt(rawDept, 10) : null;
-  const allowedDepts = departmentsForDean(req).map(d => d.id);
+  const allowedDepts = (await departmentsForDean(req)).map(d => d.id);
 
   if (!name || !email || !password || password.length < 8) {
     return res.redirect('/dean/accounts?error=' + encodeURIComponent('Please fill all fields. Password must be at least 8 characters.'));
@@ -857,13 +857,13 @@ router.post('/accounts/teachers', async (req, res) => {
   }
 
   try {
-    const exists = db.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').get(email);
+    const exists = await db.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').get(email);
     if (exists) {
       return res.redirect('/dean/accounts?error=' + encodeURIComponent('An account with this email already exists.'));
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO users (email, password_hash, role, full_name, is_active, department_id)
       VALUES (?, ?, 'faculty', ?, 1, ?)
     `).run(email, passwordHash, name, departmentId);
@@ -876,15 +876,15 @@ router.post('/accounts/teachers', async (req, res) => {
 });
 
 // POST /dean/accounts/faculty/:id/department - move a teacher into a department
-router.post('/accounts/faculty/:id/department', (req, res) => {
-  const target = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'faculty'").get(req.params.id);
+router.post('/accounts/faculty/:id/department', async (req, res) => {
+  const target = await db.prepare("SELECT * FROM users WHERE id = ? AND role = 'faculty'").get(req.params.id);
   if (!target) {
     return res.redirect('/dean/accounts?error=' + encodeURIComponent('Teacher account not found.'));
   }
 
   const rawDept = String(req.body.department_id || '').trim();
   const departmentId = rawDept ? parseInt(rawDept, 10) : null;
-  const allowedDepts = departmentsForDean(req).map(d => d.id);
+  const allowedDepts = (await departmentsForDean(req)).map(d => d.id);
 
   if (departmentId !== null && !allowedDepts.includes(departmentId)) {
     return res.redirect('/dean/accounts?error=' + encodeURIComponent('That department is outside your scope.'));
@@ -898,40 +898,40 @@ router.post('/accounts/faculty/:id/department', (req, res) => {
     }
   }
 
-  db.prepare('UPDATE users SET department_id = ?, updated_at = datetime(\'now\') WHERE id = ?').run(departmentId, target.id);
-  const dept = departmentId ? db.prepare('SELECT code FROM departments WHERE id = ?').get(departmentId) : null;
+  await db.prepare('UPDATE users SET department_id = ?, updated_at = datetime(\'now\') WHERE id = ?').run(departmentId, target.id);
+  const dept = departmentId ? await db.prepare('SELECT code FROM departments WHERE id = ?').get(departmentId) : null;
   res.redirect('/dean/accounts?success=' + encodeURIComponent(
     dept ? `${target.full_name} is now in ${dept.code}.` : `${target.full_name} is now unassigned.`
   ));
 });
 
 // POST /dean/accounts/students/:studentId/approve
-router.post('/accounts/students/:studentId/approve', (req, res) => {
-  const student = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.studentId);
+router.post('/accounts/students/:studentId/approve', async (req, res) => {
+  const student = await db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.studentId);
   if (!student) {
     return res.redirect('/dean/accounts?error=' + encodeURIComponent('Student not found.'));
   }
-  if (!inScope(deanScope(req), student.program_code)) {
+  if (!inScope(await deanScope(req), student.program_code)) {
     return res.redirect('/dean/accounts?error=' + encodeURIComponent('Outside your department.'));
   }
 
-  const update = db.transaction(() => {
-    db.prepare('UPDATE students SET status = ? WHERE id = ?').run('active', student.id);
-    db.prepare('UPDATE users SET is_active = 1 WHERE id = ?').run(student.user_id);
-    db.prepare(`
+  const update = await db.transaction(async () => {
+    await db.prepare('UPDATE students SET status = ? WHERE id = ?').run('active', student.id);
+    await db.prepare('UPDATE users SET is_active = 1 WHERE id = ?').run(student.user_id);
+    await db.prepare(`
       INSERT INTO notifications (user_id, title, message, type)
       VALUES (?, 'Registration Approved', 'Your registration has been approved by the Dean. You can now sign in.', 'registration')
     `).run(student.user_id);
   });
 
-  update();
+  await update();
 
   res.redirect('/dean/accounts?success=' + encodeURIComponent(`Student ${student.student_no} approved.`));
 });
 
 // POST /dean/accounts/:id/toggle (activate/deactivate staff)
-router.post('/accounts/:id/toggle', (req, res) => {
-  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+router.post('/accounts/:id/toggle', async (req, res) => {
+  const target = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
   if (!target) {
     return res.redirect('/dean/accounts?error=' + encodeURIComponent('Account not found.'));
   }
@@ -941,7 +941,7 @@ router.post('/accounts/:id/toggle', (req, res) => {
   if (req.user.role !== 'admin' && target.role !== 'faculty') {
     return res.redirect('/dean/accounts?error=' + encodeURIComponent('Only administrators can change that account.'));
   }
-  if (req.user.role !== 'admin' && !facultyForDean(req).some(f => f.id === target.id)) {
+  if (req.user.role !== 'admin' && !(await facultyForDean(req)).some(f => f.id === target.id)) {
     return denyCrossDept(res, req);
   }
 
@@ -949,15 +949,15 @@ router.post('/accounts/:id/toggle', (req, res) => {
   let successMsg;
 
   if (target.is_active) {
-    db.prepare('UPDATE users SET is_active = 0 WHERE id = ?').run(target.id);
+    await db.prepare('UPDATE users SET is_active = 0 WHERE id = ?').run(target.id);
     if (target.role === 'student') {
-      db.prepare("UPDATE students SET status = 'inactive' WHERE user_id = ?").run(target.id);
+      await db.prepare("UPDATE students SET status = 'inactive' WHERE user_id = ?").run(target.id);
     }
     successMsg = `${name} deactivated.`;
   } else {
-    db.prepare('UPDATE users SET is_active = 1 WHERE id = ?').run(target.id);
+    await db.prepare('UPDATE users SET is_active = 1 WHERE id = ?').run(target.id);
     if (target.role === 'student') {
-      db.prepare("UPDATE students SET status = 'active' WHERE user_id = ?").run(target.id);
+      await db.prepare("UPDATE students SET status = 'active' WHERE user_id = ?").run(target.id);
     }
     successMsg = `${name} activated.`;
   }
@@ -966,10 +966,10 @@ router.post('/accounts/:id/toggle', (req, res) => {
 });
 
 // GET /dean/reports
-router.get('/reports', (req, res) => {
+router.get('/reports', async (req, res) => {
   // GPA statistics
-  const rp = programFilter(deanScope(req), 'program_code');
-  const gpaStats = db.prepare(`
+  const rp = programFilter(await deanScope(req), 'program_code');
+  const gpaStats = await db.prepare(`
     SELECT 
       program_code,
       COUNT(*) as student_count,

@@ -1,6 +1,6 @@
 # Render Blueprint for the PCC Student Portal.
-# Configure JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, and SESSION_SECRET in the
-# Render Dashboard; never put production secrets in this file.
+# Configure JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, SESSION_SECRET, and
+# DATABASE_URL in the Render Dashboard; never put production secrets here.
 services:
   - type: web
     name: pcc-student-portal
@@ -8,10 +8,6 @@ services:
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /healthz
-    disk:
-      name: pcc-data
-      mountPath: /opt/render/project/pcc-data
-      sizeGB: 10
     envVars:
       - key: NODE_ENV
         value: production
@@ -19,9 +15,11 @@ services:
         value: 0.0.0.0
       - key: TRUST_PROXY
         value: loopback
-      - key: DB_PATH
-        value: /opt/render/project/pcc-data/pcc.db
+      - key: DATABASE_URL
+        sync: false
+      - key: NEON_AI_GATEWAY_BASE_URL
+        sync: false
+      - key: NEON_AI_GATEWAY_TOKEN
+        sync: false
       - key: UPLOAD_DIR
-        value: /opt/render/project/pcc-data/uploads
-      - key: PCC_DATA_DIR
-        value: /opt/render/project/pcc-data
+        value: /opt/render/project/src/uploads
