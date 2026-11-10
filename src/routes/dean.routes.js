@@ -123,8 +123,8 @@ router.get('/dashboard', async (req, res) => {
     JOIN users u ON s.user_id = u.id
     JOIN grades g ON s.id = g.student_id
     WHERE g.grade_points IS NOT NULL${ar.clause}
-    GROUP BY s.id
-    HAVING avg_gpa < 2.0
+    GROUP BY s.id, u.full_name
+    HAVING AVG(g.grade_points) < 2.0
     LIMIT 5
   `).all(...ar.params);
 
