@@ -7,8 +7,16 @@ Everything runs from the project root unless stated otherwise.
 
 Student, instructor, dean, and admin records are stored together in the server's
 SQLite database, not in browser storage. On Render, the database and uploaded
-profile photos must live under the persistent disk mount. Configure the service
-disk to mount at `/opt/render/project/pcc-data` and set:
+profile photos must live under the persistent disk mount. The root `render.yaml`
+is a Render Blueprint and declares a 10 GB disk mounted at
+`/opt/render/project/pcc-data`. When using an existing Dashboard-created
+service, either sync the Blueprint with that service or attach a persistent disk
+to the service in **Settings → Disks** with that exact mount path. The service
+must have a plan that supports persistent disks. Confirm the disk is attached
+before deploying; otherwise the app intentionally stops rather than writing
+student data to temporary storage.
+
+Set these environment variables on the service (the Blueprint declares them):
 
 ```text
 PCC_DATA_DIR=/opt/render/project/pcc-data
@@ -21,6 +29,11 @@ SQLite snapshot onto the persistent disk on startup if the destination database
 does not exist. It refuses to start if the configured Render disk mount is
 missing rather than silently creating another temporary database. Keep the
 persistent disk attached and back up the SQLite file regularly.
+
+If startup reports `Render persistent disk is not mounted`, attach or sync the
+disk at the exact path above and redeploy. Do not remove the startup guard or
+change the database path to the app checkout; either would risk losing student
+records on a later deploy.
 
 If Render has already discarded the old temporary database during a restart or
 deployment, it cannot be recovered from the new empty database; restore a
