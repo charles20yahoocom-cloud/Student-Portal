@@ -9,14 +9,11 @@ const db = require('../config/database');
 const { requireAuth, JAR_COOKIES, jarForRole } = require('../middleware/authenticate');
 const { sendMail, smtpConfigured } = require('../utils/mailer');
 const { imageUpload, saveProfileImage } = require('../utils/image-upload');
+const registrationPrograms = require('../config/registration-programs');
 
 // Profile photo upload during registration (kept in memory, written after the student row exists)
 const registerUpload = imageUpload;
-const registrationPrograms = () => db.prepare(`
-  SELECT code, name FROM programs
-  WHERE code NOT IN ('BSED', 'BSEED')
-  ORDER BY code
-`).all();
+const registrationProgramOptions = registrationPrograms.map(({ code, name }) => ({ code, name }));
 
 let QRCode = null;
 try {
@@ -380,7 +377,7 @@ router.get('/register', (req, res) => {
   if (req.user) {
     return res.redirect('/');
   }
-  const programs = registrationPrograms();
+  const programs = registrationProgramOptions;
   res.render('auth/register', {
     layout: false,
     title: 'Register - PCC Student Portal',
@@ -395,7 +392,7 @@ router.get('/register', (req, res) => {
 router.post('/register', (req, res, next) => {
   registerUpload.single('picture')(req, res, (err) => {
     if (!err) return next();
-    const programs = registrationPrograms();
+    const programs = registrationProgramOptions;
     const message = err.code === 'LIMIT_FILE_SIZE'
       ? 'That photo is too large. Please use an image under 5MB.'
       : 'That photo could not be used. Please choose a JPG, PNG, or WebP image.';
@@ -418,7 +415,7 @@ router.post('/register', (req, res, next) => {
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
 ], async (req, res) => {
-  const programs = registrationPrograms();
+  const programs = registrationProgramOptions;
   const renderError = (error) => res.render('auth/register', {
     layout: false,
     title: 'Register - PCC Student Portal',
@@ -446,10 +443,7 @@ router.post('/register', (req, res, next) => {
     if (noExists) {
       return renderError('This Student ID number is already registered.');
     }
-    const program = db.prepare(`
-      SELECT code FROM programs
-      WHERE code = ? AND code NOT IN ('BSED', 'BSEED')
-    `).get(programCode);
+    const program = registrationPrograms.find((candidate) => candidate.code === programCode);
     if (!program) {
       return renderError('Invalid program selected.');
     }
@@ -457,6 +451,13 @@ router.post('/register', (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const createUser = db.transaction(() => {
+      db.prepare('INSERT OR IGNORE INTO departments (code, name) VALUES (?, ?)')
+        .run(program.departmentCode, program.departmentName);
+      db.prepare(`
+        INSERT OR IGNORE INTO programs (code, name, department_id, total_units, total_years)
+        VALUES (?, ?, (SELECT id FROM departments WHERE code = ?), ?, 4)
+      `).run(program.code, program.name, program.departmentCode, program.totalUnits);
+
       // is_active = 0 until Dean approves
       const result = db.prepare(`
         INSERT INTO users (email, password_hash, role, full_name, is_active)
