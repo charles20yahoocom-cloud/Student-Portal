@@ -1,11 +1,12 @@
 # Render Blueprint for the PCC Student Portal.
-# Configure JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, SESSION_SECRET, and
-# DATABASE_URL in the Render Dashboard; never put production secrets here.
+# The three session secrets are generated automatically on first blueprint
+# sync. DATABASE_URL must be set in the Render Dashboard (Neon connection
+# string); never put production secrets in this file.
 services:
   - type: web
     name: pcc-student-portal
     runtime: node
-    buildCommand: npm ci
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /healthz
     envVars:
@@ -14,7 +15,13 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: TRUST_PROXY
-        value: loopback
+        value: "1"
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
       - key: DATABASE_URL
         sync: false
       - key: NEON_AI_GATEWAY_BASE_URL
