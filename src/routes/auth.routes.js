@@ -12,6 +12,11 @@ const { imageUpload, saveProfileImage } = require('../utils/image-upload');
 
 // Profile photo upload during registration (kept in memory, written after the student row exists)
 const registerUpload = imageUpload;
+const registrationPrograms = () => db.prepare(`
+  SELECT code, name FROM programs
+  WHERE code NOT IN ('BSED', 'BSEED')
+  ORDER BY code
+`).all();
 
 let QRCode = null;
 try {
@@ -375,7 +380,7 @@ router.get('/register', (req, res) => {
   if (req.user) {
     return res.redirect('/');
   }
-  const programs = db.prepare('SELECT code, name FROM programs ORDER BY code').all();
+  const programs = registrationPrograms();
   res.render('auth/register', {
     layout: false,
     title: 'Register - PCC Student Portal',
@@ -390,7 +395,7 @@ router.get('/register', (req, res) => {
 router.post('/register', (req, res, next) => {
   registerUpload.single('picture')(req, res, (err) => {
     if (!err) return next();
-    const programs = db.prepare('SELECT code, name FROM programs ORDER BY code').all();
+    const programs = registrationPrograms();
     const message = err.code === 'LIMIT_FILE_SIZE'
       ? 'That photo is too large. Please use an image under 5MB.'
       : 'That photo could not be used. Please choose a JPG, PNG, or WebP image.';
@@ -413,7 +418,7 @@ router.post('/register', (req, res, next) => {
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
 ], async (req, res) => {
-  const programs = db.prepare('SELECT code, name FROM programs ORDER BY code').all();
+  const programs = registrationPrograms();
   const renderError = (error) => res.render('auth/register', {
     layout: false,
     title: 'Register - PCC Student Portal',
@@ -441,7 +446,10 @@ router.post('/register', (req, res, next) => {
     if (noExists) {
       return renderError('This Student ID number is already registered.');
     }
-    const program = db.prepare('SELECT code FROM programs WHERE code = ?').get(programCode);
+    const program = db.prepare(`
+      SELECT code FROM programs
+      WHERE code = ? AND code NOT IN ('BSED', 'BSEED')
+    `).get(programCode);
     if (!program) {
       return renderError('Invalid program selected.');
     }

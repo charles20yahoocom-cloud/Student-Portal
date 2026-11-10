@@ -67,8 +67,9 @@ async function seed() {
     { code: 'BSHM', name: 'Bachelor of Science in Hospitality Management', dept: 'HM', units: 140, years: 4 },
     { code: 'BSBA', name: 'Bachelor of Science in Business Administration', dept: 'BA', units: 140, years: 4 },
     { code: 'BSCRIM', name: 'Bachelor of Science in Criminology', dept: 'CRIM', units: 140, years: 4 },
-    { code: 'BSED', name: 'Bachelor of Secondary Education', dept: 'ED', units: 140, years: 4 },
-    { code: 'BSEED', name: 'Bachelor of Elementary Education', dept: 'ED', units: 140, years: 4 }
+    { code: 'BSED-ENG', name: 'Bachelor of Secondary Education major in English', dept: 'ED', units: 140, years: 4 },
+    { code: 'BSED-MATH', name: 'Bachelor of Secondary Education major in Mathematics', dept: 'ED', units: 140, years: 4 },
+    { code: 'BEED', name: 'Bachelor of Elementary Education', dept: 'ED', units: 140, years: 4 }
   ];
 
   const insertProgram = db.prepare(
