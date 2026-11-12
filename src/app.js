@@ -176,6 +176,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/', authRoutes);
+app.use('/faculty/profile', staffProfileRoutes);
 app.use('/profile', staffProfileRoutes);
 app.use('/student', studentRoutes);
 app.use('/dean', deanRoutes);

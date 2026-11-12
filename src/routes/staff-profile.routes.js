@@ -22,6 +22,11 @@ const ROLE_LABELS = {
   admin: 'Administrator'
 };
 
+function profilePath(req, suffix = '') {
+  const base = req.baseUrl === '/faculty/profile' ? '/faculty/profile' : '/profile';
+  return base + suffix;
+}
+
 router.use(requireAuth);
 router.use(requireRole(...STAFF_ROLES));
 
@@ -38,6 +43,7 @@ router.get('/', async (req, res) => {
     userDetails,
     roleLabel: ROLE_LABELS[userDetails.role] || userDetails.role,
     home: HOME_BY_ROLE[userDetails.role] || '/',
+    profilePath: profilePath(req),
     saved: req.query.saved === '1',
     pwSaved: req.query.pw === '1',
     error: req.query.error || null,
@@ -51,15 +57,15 @@ router.post('/', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
 
   if (!fullName) {
-    return res.redirect('/profile?error=' + encodeURIComponent('Full name is required.'));
+    return res.redirect(profilePath(req, '?error=' + encodeURIComponent('Full name is required.')));
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.redirect('/profile?error=' + encodeURIComponent('Please enter a valid email address.'));
+    return res.redirect(profilePath(req, '?error=' + encodeURIComponent('Please enter a valid email address.')));
   }
 
   const taken = await db.prepare('SELECT id FROM users WHERE lower(email) = ? AND id != ?').get(email, req.user.id);
   if (taken) {
-    return res.redirect('/profile?error=' + encodeURIComponent('That email is already used by another account.'));
+    return res.redirect(profilePath(req, '?error=' + encodeURIComponent('That email is already used by another account.')));
   }
 
   await db.prepare("UPDATE users SET full_name = ?, email = ?, updated_at = datetime('now') WHERE id = ?")
@@ -69,7 +75,7 @@ router.post('/', async (req, res) => {
   const { accessToken, refreshToken } = generateTokens(updated);
   setTokenCookies(res, accessToken, refreshToken, jarForRole(updated.role));
 
-  res.redirect('/profile?saved=1');
+  res.redirect(profilePath(req, '?saved=1'));
 });
 
 // POST /profile/password
@@ -81,23 +87,23 @@ router.post('/password', async (req, res) => {
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
   if (!(await bcrypt.compare(current, user.password_hash))) {
-    return res.redirect('/profile?error=' + encodeURIComponent('Your current password is incorrect.'));
+    return res.redirect(profilePath(req, '?error=' + encodeURIComponent('Your current password is incorrect.')));
   }
   if (next.length < 8) {
-    return res.redirect('/profile?error=' + encodeURIComponent('New password must be at least 8 characters.'));
+    return res.redirect(profilePath(req, '?error=' + encodeURIComponent('New password must be at least 8 characters.')));
   }
   if (next !== confirm) {
-    return res.redirect('/profile?error=' + encodeURIComponent('New password and confirmation do not match.'));
+    return res.redirect(profilePath(req, '?error=' + encodeURIComponent('New password and confirmation do not match.')));
   }
   if (next === current) {
-    return res.redirect('/profile?error=' + encodeURIComponent('New password must be different from the current one.'));
+    return res.redirect(profilePath(req, '?error=' + encodeURIComponent('New password must be different from the current one.')));
   }
 
   const passwordHash = await bcrypt.hash(next, 10);
   await db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?")
     .run(passwordHash, req.user.id);
 
-  res.redirect('/profile?pw=1');
+  res.redirect(profilePath(req, '?pw=1'));
 });
 
 // POST /profile/picture
