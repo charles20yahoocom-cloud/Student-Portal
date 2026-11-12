@@ -31,10 +31,6 @@
         </div>
         <div class="flex items-center space-x-3">
           <span id="gradedCount" class="text-sm text-gray-600"><%= students.filter(s => s.grade_value).length %>/<%= students.length %> graded</span>
-          <a href="/faculty/grade-entry/<%= offering.id %>/template"
-            class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition">
-            Download CSV Template
-          </a>
           <button onclick="document.getElementById('importFile').click()"
             class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition">
             Upload CSV

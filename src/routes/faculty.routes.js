@@ -9,16 +9,10 @@ const importUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ok = /\.csv$/i.test(file.originalname || '');
-    if (!ok) req.fileValidationError = 'Only .csv files are allowed. Download the CSV template above and fill it in.';
+    if (!ok) req.fileValidationError = 'Only .csv files are allowed.';
     cb(null, ok);
   }
 });
-
-// Minimal CSV helpers so grade templates need no spreadsheet library.
-function csvField(value) {
-  const text = String(value ?? '');
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
 
 function parseCsv(text) {
   const rows = [];
@@ -288,37 +282,6 @@ router.post('/grades/batch', async (req, res) => {
     console.error('Batch grade save error:', err);
     res.status(500).json({ error: 'Failed to save grades' });
   }
-});
-
-// GET /faculty/grade-entry/:offeringId/template — CSV template pre-filled with the section's students
-router.get('/grade-entry/:offeringId/template', async (req, res) => {
-  const offering = await db.prepare('SELECT * FROM course_offerings WHERE id = ?').get(req.params.offeringId);
-
-  if (!offering || offering.instructor_id !== req.user.id) {
-    return res.redirect('/faculty/grade-entry');
-  }
-
-  const students = await db.prepare(`
-    SELECT s.student_no, s.first_name, s.last_name
-    FROM enrollments e
-    JOIN students s ON e.student_id = s.id
-    WHERE e.offering_id = ? AND e.status = 'enrolled'
-    ORDER BY s.last_name, s.first_name
-  `).all(offering.id);
-
-  const rows = [
-    ['Student No.', 'Student Name', 'Grade', 'Remarks'],
-    ...students.map(s => [s.student_no, `${s.last_name}, ${s.first_name}`, '', ''])
-  ];
-  // BOM so Excel opens UTF-8 names correctly.
-  const csv = '\uFEFF' + rows.map(row => row.map(csvField).join(',')).join('\r\n') + '\r\n';
-  const filename = `${offering.course_code} Sec ${offering.section} Grade Template.csv`
-    .replace(/[^\x20-\x7E]/g, '')
-    .replace(/"/g, '');
-
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.send(csv);
 });
 
 // POST /faculty/grades/import — validate a CSV file and save the grades
