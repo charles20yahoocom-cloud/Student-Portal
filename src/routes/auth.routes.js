@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { authenticator } = require('otplib');
+const otplib = require('otplib');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database-runtime');
 const { requireAuth, JAR_COOKIES, jarForRole } = require('../middleware/authenticate');
@@ -34,6 +34,32 @@ async function generateQRDataUrl(otpauthUrl) {
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+
+// otplib v13 dropped the `authenticator` helper object in favour of top-level
+// functions (generateSecret / generateURI / verify), and `verify` became async
+// and returns { valid } instead of a boolean. Keep one small adapter so the 2FA
+// routes work on either major version and stay readable.
+const otplibAuthenticator = otplib.authenticator;
+const totp = {
+  generateSecret() {
+    return otplibAuthenticator ? otplibAuthenticator.generateSecret() : otplib.generateSecret();
+  },
+  keyuri(account, issuer, secret) {
+    return otplibAuthenticator
+      ? otplibAuthenticator.keyuri(account, issuer, secret)
+      : otplib.generateURI({ issuer, label: account, secret });
+  },
+  async verify({ token, secret }) {
+    if (!secret) return false;
+    const code = String(token || '').trim();
+    if (!/^\d{6}$/.test(code)) return false;
+    if (otplibAuthenticator) {
+      return Boolean(otplibAuthenticator.verify({ token: code, secret }));
+    }
+    const result = await otplib.verify({ secret, token: code });
+    return Boolean(result && result.valid);
+  }
+};
 
 // Cookies are Secure by default in production. A plain-HTTP LAN deployment can
 // set COOKIE_SECURE=false; public hosting must leave it true behind HTTPS.
@@ -661,8 +687,8 @@ router.get('/2fa/setup', requireAuth, async (req, res) => {
   }
 
   // Generate new secret
-  const secret = authenticator.generateSecret();
-  const otpauth = authenticator.keyuri(user.email, 'PCC Student Portal', secret);
+  const secret = totp.generateSecret();
+  const otpauth = totp.keyuri(user.email, 'PCC Student Portal', secret);
 
   // Store secret temporarily (not yet enabled)
   await db.prepare('UPDATE users SET totp_secret = ? WHERE id = ?').run(secret, user.id);
@@ -687,10 +713,10 @@ router.post('/2fa/verify-setup', requireAuth, [
   const { code } = req.body;
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
-  const isValid = authenticator.verify({ token: code, secret: user.totp_secret });
+  const isValid = await totp.verify({ token: code, secret: user.totp_secret });
 
   if (!isValid) {
-    const qrDataUrl = await generateQRDataUrl(authenticator.keyuri(user.email, 'PCC Student Portal', user.totp_secret));
+    const qrDataUrl = await generateQRDataUrl(totp.keyuri(user.email, 'PCC Student Portal', user.totp_secret));
     return res.render('auth/2fa-setup', {
       layout: false,
       title: '2FA Setup - PCC Student Portal',
@@ -746,7 +772,7 @@ router.post('/2fa/verify', [
       return res.redirect('/login');
     }
 
-    const isValid = authenticator.verify({ token: req.body.code, secret: user.totp_secret });
+    const isValid = await totp.verify({ token: req.body.code, secret: user.totp_secret });
 
     if (!isValid) {
       return res.render('auth/2fa-verify', {
