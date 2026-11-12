@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { authenticator } = require('otplib');
+const { generateSecret, generateURI, verify } = require('otplib');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database-runtime');
 const { requireAuth, JAR_COOKIES, jarForRole } = require('../middleware/authenticate');
@@ -661,8 +661,12 @@ router.get('/2fa/setup', requireAuth, async (req, res) => {
   }
 
   // Generate new secret
-  const secret = authenticator.generateSecret();
-  const otpauth = authenticator.keyuri(user.email, 'PCC Student Portal', secret);
+  const secret = generateSecret();
+  const otpauth = generateURI({
+    issuer: 'PCC Student Portal',
+    label: user.email,
+    secret
+  });
 
   // Store secret temporarily (not yet enabled)
   await db.prepare('UPDATE users SET totp_secret = ? WHERE id = ?').run(secret, user.id);
@@ -687,10 +691,14 @@ router.post('/2fa/verify-setup', requireAuth, [
   const { code } = req.body;
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
-  const isValid = authenticator.verify({ token: code, secret: user.totp_secret });
+  const result = await verify({ token: code, secret: user.totp_secret });
 
-  if (!isValid) {
-    const qrDataUrl = await generateQRDataUrl(authenticator.keyuri(user.email, 'PCC Student Portal', user.totp_secret));
+  if (!result.valid) {
+    const qrDataUrl = await generateQRDataUrl(generateURI({
+      issuer: 'PCC Student Portal',
+      label: user.email,
+      secret: user.totp_secret
+    }));
     return res.render('auth/2fa-setup', {
       layout: false,
       title: '2FA Setup - PCC Student Portal',
@@ -740,15 +748,20 @@ router.post('/2fa/verify', [
 
   try {
     const payload = jwt.verify(tempToken, ACCESS_SECRET);
+    if (payload.step !== '2fa') {
+      res.clearCookie('tempToken');
+      return res.redirect('/login');
+    }
+
     const user = await db.prepare('SELECT * FROM users WHERE id = ? AND totp_enabled = 1').get(payload.id);
 
     if (!user) {
       return res.redirect('/login');
     }
 
-    const isValid = authenticator.verify({ token: req.body.code, secret: user.totp_secret });
+    const result = await verify({ token: req.body.code, secret: user.totp_secret });
 
-    if (!isValid) {
+    if (!result.valid) {
       return res.render('auth/2fa-verify', {
         layout: false,
         title: '2FA Verification - PCC Student Portal',
