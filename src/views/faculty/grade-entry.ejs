@@ -10,51 +10,63 @@
       <h1 class="text-2xl font-bold text-gray-800">Grade Entry</h1>
       <p class="text-gray-600 mt-1">
         <%= activeSemester
-          ? 'Submit grades for the subjects you handle — ' + activeSemester.name + ' ' + activeSemester.school_year
+          ? 'Subjects are grouped by curriculum year. Enter grades for your assigned sections — ' + activeSemester.name + ' ' + activeSemester.school_year
           : 'No active semester' %>
       </p>
     </div>
 
-    <%
-      const grouped = {};
-      offerings.forEach(o => {
-        if (!grouped[o.course_code]) grouped[o.course_code] = { code: o.course_code, name: o.course_name, sections: [] };
-        grouped[o.course_code].sections.push(o);
-      });
-      const subjectList = Object.values(grouped);
-    %>
-
     <div class="space-y-6">
-      <% if (subjectList.length > 0) { %>
-        <% subjectList.forEach(subject => { %>
-          <div class="panel p-6">
-            <div class="flex items-start justify-between mb-4">
-              <div>
-                <h3 class="font-semibold text-gray-800 text-lg"><%= subject.code %></h3>
-                <p class="text-sm text-gray-500 mt-1"><%= subject.name %></p>
-              </div>
-              <span class="px-3 py-1 rounded-full text-sm font-medium bg-pcc-blue/10 text-pcc-blue">
-                <%= subject.sections.length %> section<%= subject.sections.length > 1 ? 's' : '' %>
-              </span>
+      <% if (gradeEntryGroups.length > 0) { %>
+        <% gradeEntryGroups.forEach(group => { %>
+          <section>
+            <div class="mb-4">
+              <h2 class="text-xl font-bold text-gray-800">
+                <%= group.year === null ? group.programName : group.programName + ' — Year ' + group.year %>
+              </h2>
+              <% if (group.year === null) { %>
+                <p class="text-sm text-amber-700 mt-1">These sections do not match a subject in the current curriculum.</p>
+              <% } %>
             </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <% subject.sections.forEach(o => { %>
-                <a href="/faculty/grade-entry/<%= o.id %>" class="border border-gray-200 rounded-xl p-4 hover:border-pcc-blue hover:bg-pcc-blue/5 transition group">
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 group-hover:bg-pcc-blue group-hover:text-white transition">
-                      Sec. <%= o.section %>
-                    </span>
-                    <span class="text-pcc-blue text-sm group-hover:translate-x-0.5 transition">Encode →</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <% group.subjects.forEach(subject => { %>
+                <div class="panel p-5">
+                  <div class="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 class="font-semibold text-gray-800"><%= subject.courseCode %></h3>
+                      <p class="text-sm text-gray-500 mt-1"><%= subject.courseName %></p>
+                    </div>
+                    <% if (subject.sections.length > 0) { %>
+                      <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-pcc-blue/10 text-pcc-blue">
+                        <%= subject.sections.length %> section<%= subject.sections.length === 1 ? '' : 's' %>
+                      </span>
+                    <% } else { %>
+                      <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Unavailable</span>
+                    <% } %>
                   </div>
-                  <p class="text-sm text-gray-600">
-                    <span class="font-medium text-gray-800"><%= o.enrolled_count %></span> students
-                    &middot; <span class="font-medium text-gray-800"><%= o.graded_count %>/<%= o.enrolled_count %></span> graded
-                  </p>
-                </a>
+                  <% if (subject.sections.length > 0) { %>
+                    <div class="space-y-2">
+                      <% subject.sections.forEach(o => { %>
+                        <a href="/faculty/grade-entry/<%= o.id %>" class="block border border-gray-200 rounded-xl p-3 hover:border-pcc-blue hover:bg-pcc-blue/5 transition group">
+                          <div class="flex items-center justify-between mb-2">
+                            <span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 group-hover:bg-pcc-blue group-hover:text-white transition">
+                              Sec. <%= o.section %>
+                            </span>
+                            <span class="text-pcc-blue text-sm group-hover:translate-x-0.5 transition">Encode →</span>
+                          </div>
+                          <p class="text-sm text-gray-600">
+                            <span class="font-medium text-gray-800"><%= o.enrolled_count %></span> students
+                            &middot; <span class="font-medium text-gray-800"><%= o.graded_count %>/<%= o.enrolled_count %></span> graded
+                          </p>
+                        </a>
+                      <% }); %>
+                    </div>
+                  <% } else { %>
+                    <p class="text-sm text-gray-500">No section assigned to you for this semester.</p>
+                  <% } %>
+                </div>
               <% }); %>
             </div>
-          </div>
+          </section>
         <% }); %>
       <% } else { %>
         <div class="panel p-12 text-center">

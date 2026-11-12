@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const db = require('../config/database-runtime');
 const { requireAuth, requireRole } = require('../middleware/authenticate');
 const { removeProfileImage } = require('../utils/image-upload');
+const { groupGradeEntryByYear } = require('../utils/grade-entry-curriculum');
 
 // CSV imports stay in memory: bounded size, no temp files on disk to clean up.
 const upload = multer({
@@ -286,7 +287,7 @@ router.get('/grade-entry', async (req, res) => {
   const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
   const scope = await deanScope(req);
 
-  // Get course offerings
+  // Get active curriculum subjects and current-term sections in the dean's scope.
   const off = programFilter(scope, 'co.program_code');
   const offerings = activeSemester ? await db.prepare(`
     SELECT co.*,
@@ -296,10 +297,25 @@ router.get('/grade-entry', async (req, res) => {
     ORDER BY co.course_code
   `).all(activeSemester.id, ...off.params) : [];
 
+  const curriculumFilter = programFilter(scope, 'ct.program_code');
+  const curriculumRows = await db.prepare(`
+    SELECT ct.program_code, ct.program_name, ci.semester_number,
+      ci.course_code, ci.course_name
+    FROM curriculum_templates ct
+    JOIN curriculum_items ci ON ci.template_id = ct.id
+    WHERE ct.is_active = 1
+      AND ct.id = (
+        SELECT MAX(active_version.id)
+        FROM curriculum_templates active_version
+        WHERE active_version.program_code = ct.program_code AND active_version.is_active = 1
+      )${curriculumFilter.clause}
+    ORDER BY ct.program_code, ci.semester_number, ci.display_order, ci.course_code
+  `).all(...curriculumFilter.params);
+
   res.render('dean/grade-entry', {
     title: 'Grade Entry - PCC Student Portal',
     activeSemester,
-    offerings,
+    gradeEntryGroups: groupGradeEntryByYear(curriculumRows, offerings),
     user: req.user
   });
 });

@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const db = require('../config/database-runtime');
 const { requireAuth, requireRole } = require('../middleware/authenticate');
+const { groupGradeEntryByYear } = require('../utils/grade-entry-curriculum');
 
 const importUpload = multer({
   storage: multer.memoryStorage(),
@@ -165,10 +166,56 @@ router.get('/grade-entry', async (req, res) => {
     ORDER BY co.course_code, co.section
   `).all(req.user.id, activeSemester.id) : [];
 
+  const programCodes = new Set(offerings.map(offering => offering.program_code).filter(Boolean));
+  const unscopedCourseCodes = [...new Set(
+    offerings.filter(offering => !offering.program_code).map(offering => offering.course_code)
+  )];
+  if (unscopedCourseCodes.length) {
+    const placeholders = unscopedCourseCodes.map(() => '?').join(',');
+    const matches = await db.prepare(`
+      SELECT DISTINCT ct.program_code, ci.course_code
+      FROM curriculum_templates ct
+      JOIN curriculum_items ci ON ci.template_id = ct.id
+      WHERE ct.is_active = 1
+        AND ct.id = (
+          SELECT MAX(active_version.id)
+          FROM curriculum_templates active_version
+          WHERE active_version.program_code = ct.program_code AND active_version.is_active = 1
+        )
+        AND ci.course_code IN (${placeholders})
+    `).all(...unscopedCourseCodes);
+    for (const courseCode of unscopedCourseCodes) {
+      const coursePrograms = [...new Set(matches
+        .filter(match => match.course_code === courseCode)
+        .map(match => match.program_code))];
+      if (coursePrograms.length === 1) programCodes.add(coursePrograms[0]);
+    }
+  }
+
+  let curriculumRows = [];
+  if (programCodes.size) {
+    const programList = [...programCodes];
+    const placeholders = programList.map(() => '?').join(',');
+    curriculumRows = await db.prepare(`
+      SELECT ct.program_code, ct.program_name, ci.semester_number,
+        ci.course_code, ci.course_name
+      FROM curriculum_templates ct
+      JOIN curriculum_items ci ON ci.template_id = ct.id
+      WHERE ct.is_active = 1
+        AND ct.id = (
+          SELECT MAX(active_version.id)
+          FROM curriculum_templates active_version
+          WHERE active_version.program_code = ct.program_code AND active_version.is_active = 1
+        )
+        AND ct.program_code IN (${placeholders})
+      ORDER BY ct.program_code, ci.semester_number, ci.display_order, ci.course_code
+    `).all(...programList);
+  }
+
   res.render('faculty/grade-entry', {
     title: 'Grade Entry - PCC Student Portal',
     activeSemester,
-    offerings,
+    gradeEntryGroups: groupGradeEntryByYear(curriculumRows, offerings),
     user: req.user
   });
 });

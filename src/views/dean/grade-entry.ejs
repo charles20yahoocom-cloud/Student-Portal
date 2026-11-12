@@ -30,43 +30,64 @@
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-gray-800">Grade Entry</h1>
       <p class="text-gray-600 mt-1">
-        <%= activeSemester ? 'Select a course section to enter grades for ' + activeSemester.school_year : 'No active semester' %>
+        <%= activeSemester
+          ? 'Curriculum subjects are grouped by year. Select an active section to enter grades for ' + activeSemester.school_year + '.'
+          : 'No active semester. Curriculum subjects are shown by year, but grade entry is unavailable until a semester is active.' %>
       </p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <% if (offerings.length > 0) { %>
-        <% offerings.forEach(offering => { %>
-          <a href="/dean/grade-entry/<%= offering.id %>" class="panel panel-hover p-6 group">
-            <div class="flex items-start justify-between mb-4">
-              <div>
-                <h3 class="font-semibold text-gray-800"><%= offering.course_code %></h3>
-                <p class="text-sm text-gray-500 mt-1"><%= offering.course_name %></p>
-              </div>
-              <span class="px-3 py-1 rounded-full text-sm font-medium bg-pcc-blue/10 text-pcc-blue">
-                Sec. <%= offering.section %>
-              </span>
+    <div class="space-y-8">
+      <% if (gradeEntryGroups.length > 0) { %>
+        <% gradeEntryGroups.forEach(group => { %>
+          <section>
+            <div class="mb-4">
+              <h2 class="text-xl font-bold text-gray-800">
+                <%= group.year === null ? group.programName : group.programName + ' — Year ' + group.year %>
+              </h2>
+              <% if (group.year === null) { %>
+                <p class="text-sm text-amber-700 mt-1">These active sections do not match a subject in the current curriculum.</p>
+              <% } %>
             </div>
-            <div class="flex items-center justify-between">
-              <span class="text-gray-600 text-sm">
-                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
-                <%= offering.enrolled_count %> students
-              </span>
-              <span class="text-pcc-blue group-hover:translate-x-1 transition inline-flex items-center">
-                Encode →
-              </span>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <% group.subjects.forEach(subject => { %>
+                <div class="panel p-6">
+                  <div class="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 class="font-semibold text-gray-800"><%= subject.courseCode %></h3>
+                      <p class="text-sm text-gray-500 mt-1"><%= subject.courseName %></p>
+                    </div>
+                    <% if (subject.sections.length > 0) { %>
+                      <span class="px-3 py-1 rounded-full text-sm font-medium bg-pcc-blue/10 text-pcc-blue">
+                        <%= subject.sections.length %> section<%= subject.sections.length === 1 ? '' : 's' %>
+                      </span>
+                    <% } else { %>
+                      <span class="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">Unavailable</span>
+                    <% } %>
+                  </div>
+                  <% if (subject.sections.length > 0) { %>
+                    <div class="space-y-2">
+                      <% subject.sections.forEach(offering => { %>
+                        <a href="/dean/grade-entry/<%= offering.id %>" class="flex items-center justify-between border border-gray-200 rounded-lg p-3 hover:border-pcc-blue hover:bg-pcc-blue/5 transition group">
+                          <span class="text-gray-600 text-sm">Sec. <%= offering.section %> · <%= offering.enrolled_count %> students</span>
+                          <span class="text-pcc-blue group-hover:translate-x-1 transition">Encode →</span>
+                        </a>
+                      <% }); %>
+                    </div>
+                  <% } else { %>
+                    <p class="text-sm text-gray-500">Add an active course section before entering grades.</p>
+                  <% } %>
+                </div>
+              <% }); %>
             </div>
-          </a>
+          </section>
         <% }); %>
       <% } else { %>
         <div class="col-span-full panel p-12 text-center">
           <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
           </svg>
-          <h3 class="text-lg font-medium text-gray-800 mb-2">No Course Offerings</h3>
-          <p class="text-gray-500">Set up course offerings for the active semester to begin grade entry.</p>
+          <h3 class="text-lg font-medium text-gray-800 mb-2">No Curriculum or Course Offerings</h3>
+          <p class="text-gray-500">Add a curriculum or set up course offerings to begin grade entry.</p>
         </div>
       <% } %>
     </div>
