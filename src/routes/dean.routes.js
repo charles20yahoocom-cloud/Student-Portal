@@ -4,6 +4,8 @@ const multer = require('multer');
 const bcrypt = require('bcrypt');
 const db = require('../config/database-runtime');
 const { requireAuth, requireRole } = require('../middleware/authenticate');
+const { removeProfileImage } = require('../utils/image-upload');
+const { groupGradeEntryByYear } = require('../utils/grade-entry-curriculum');
 
 // CSV imports stay in memory: bounded size, no temp files on disk to clean up.
 const upload = multer({
@@ -146,15 +148,138 @@ router.get('/students', async (req, res) => {
     SELECT s.*, u.full_name, u.email
     FROM students s
     JOIN users u ON s.user_id = u.id
-    WHERE s.status = 'active'${f.clause}
+    WHERE 1 = 1${f.clause}
     ORDER BY s.student_no
   `).all(...f.params);
 
   res.render('dean/students', {
     title: 'Students - PCC Student Portal',
     students,
+    success: req.query.success || null,
+    error: req.query.error || null,
     user: req.user
   });
+});
+
+// GET /dean/students/:studentId/edit
+router.get('/students/:studentId/edit', async (req, res) => {
+  const student = await db.prepare(`
+    SELECT s.*, u.email
+    FROM students s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.id = ?
+  `).get(req.params.studentId);
+  if (!student) return res.redirect('/dean/students?error=' + encodeURIComponent('Student not found.'));
+  if (!inScope(await deanScope(req), student.program_code)) return denyCrossDept(res, req);
+
+  const programs = await programsForDean(req);
+  res.render('dean/student-edit', {
+    title: `Edit Student ${student.student_no} - PCC Student Portal`,
+    student,
+    programs,
+    error: req.query.error || null,
+    user: req.user
+  });
+});
+
+// POST /dean/students/:studentId/edit
+router.post('/students/:studentId/edit', async (req, res) => {
+  const student = await db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.studentId);
+  if (!student) return res.redirect('/dean/students?error=' + encodeURIComponent('Student not found.'));
+  if (!inScope(await deanScope(req), student.program_code)) return denyCrossDept(res, req);
+
+  const studentNo = String(req.body.student_no || '').trim();
+  const firstName = String(req.body.first_name || '').trim();
+  const middleName = String(req.body.middle_name || '').trim();
+  const lastName = String(req.body.last_name || '').trim();
+  const programCode = String(req.body.program_code || '').trim().toUpperCase();
+  const yearLevel = Number(req.body.year_level);
+  const section = String(req.body.section || '').trim().toUpperCase();
+  const gender = String(req.body.gender || '');
+  const dateOfBirth = String(req.body.date_of_birth || '').trim();
+  const status = String(req.body.status || '');
+  const classification = String(req.body.classification || '');
+  const allowedPrograms = await programsForDean(req);
+
+  let error = null;
+  if (!studentNo || studentNo.length > 50) error = 'Enter a student number (up to 50 characters).';
+  else if (!firstName || firstName.length > 100) error = 'Enter a first name (up to 100 characters).';
+  else if (middleName.length > 100) error = 'Middle name must be 100 characters or fewer.';
+  else if (!lastName || lastName.length > 100) error = 'Enter a last name (up to 100 characters).';
+  else if (!allowedPrograms.some(program => program.code === programCode)) error = 'Select a program you are allowed to manage.';
+  else if (!Number.isInteger(yearLevel) || yearLevel < 1 || yearLevel > 4) error = 'Select a valid year level.';
+  else if (section.length > 10 || (section && !/^[A-Z0-9][A-Z0-9-]*$/.test(section))) error = 'Section may contain up to 10 letters, numbers, or dashes.';
+  else if (!['', 'M', 'F', 'Other'].includes(gender)) error = 'Select a valid gender.';
+  else if (dateOfBirth && (
+    !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ||
+    Number.isNaN(Date.parse(dateOfBirth)) ||
+    new Date(dateOfBirth).toISOString().slice(0, 10) !== dateOfBirth
+  )) error = 'Enter a valid date of birth.';
+  else if (!['active', 'inactive', 'graduated', 'dropped', 'suspended'].includes(status)) error = 'Select a valid enrollment status.';
+  else if (!['regular', 'irregular'].includes(classification)) error = 'Select regular or irregular standing.';
+
+  if (!error) {
+    const duplicate = await db.prepare('SELECT id FROM students WHERE student_no = ? AND id <> ?').get(studentNo, student.id);
+    if (duplicate) error = 'That student number is already assigned to another student.';
+  }
+
+  if (error) {
+    return res.redirect(`/dean/students/${encodeURIComponent(student.id)}/edit?error=${encodeURIComponent(error)}`);
+  }
+
+  const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ');
+  const updateStudent = await db.transaction(async () => {
+    await db.prepare(`
+      UPDATE students
+      SET student_no = ?, first_name = ?, middle_name = ?, last_name = ?, gender = ?,
+        date_of_birth = ?, program_code = ?, year_level = ?, section = ?, status = ?,
+        classification = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      studentNo, firstName, middleName || null, lastName, gender || null,
+      dateOfBirth || null, programCode, yearLevel, section || null, status,
+      classification, student.id
+    );
+    await db.prepare(`
+      UPDATE users
+      SET full_name = ?, is_active = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(fullName, status === 'active' ? 1 : 0, student.user_id);
+  });
+  await updateStudent();
+
+  res.redirect('/dean/students?success=' + encodeURIComponent(`Student ${studentNo} updated.`));
+});
+
+// POST /dean/students/:studentId/delete — permanently remove the student's account and records
+router.post('/students/:studentId/delete', async (req, res) => {
+  const student = await db.prepare(`
+    SELECT s.*, u.id AS account_user_id, u.profile_picture AS user_profile_picture
+    FROM students s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.id = ?
+  `).get(req.params.studentId);
+  if (!student) return res.redirect('/dean/students?error=' + encodeURIComponent('Student not found.'));
+  if (!inScope(await deanScope(req), student.program_code)) return denyCrossDept(res, req);
+
+  const deleteStudent = await db.transaction(async () => {
+    await db.prepare('DELETE FROM grades WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM grade_audit_log WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM prospectus_entries WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM transcripts WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM student_curriculum WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM enrollments WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM notifications WHERE user_id = ?').run(student.account_user_id);
+    await db.prepare('DELETE FROM backup_codes WHERE user_id = ?').run(student.account_user_id);
+    await db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(student.account_user_id);
+    await db.prepare('DELETE FROM students WHERE id = ?').run(student.id);
+    await db.prepare('DELETE FROM users WHERE id = ?').run(student.account_user_id);
+  });
+  await deleteStudent();
+
+  removeProfileImage(student.profile_picture);
+  removeProfileImage(student.user_profile_picture);
+  res.redirect('/dean/students?success=' + encodeURIComponent(`Student ${student.student_no} and their records were permanently deleted.`));
 });
 
 // GET /dean/grade-entry
@@ -162,7 +287,7 @@ router.get('/grade-entry', async (req, res) => {
   const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
   const scope = await deanScope(req);
 
-  // Get course offerings
+  // Get active curriculum subjects and current-term sections in the dean's scope.
   const off = programFilter(scope, 'co.program_code');
   const offerings = activeSemester ? await db.prepare(`
     SELECT co.*,
@@ -172,10 +297,25 @@ router.get('/grade-entry', async (req, res) => {
     ORDER BY co.course_code
   `).all(activeSemester.id, ...off.params) : [];
 
+  const curriculumFilter = programFilter(scope, 'ct.program_code');
+  const curriculumRows = await db.prepare(`
+    SELECT ct.program_code, ct.program_name, ci.semester_number,
+      ci.course_code, ci.course_name
+    FROM curriculum_templates ct
+    JOIN curriculum_items ci ON ci.template_id = ct.id
+    WHERE ct.is_active = 1
+      AND ct.id = (
+        SELECT MAX(active_version.id)
+        FROM curriculum_templates active_version
+        WHERE active_version.program_code = ct.program_code AND active_version.is_active = 1
+      )${curriculumFilter.clause}
+    ORDER BY ct.program_code, ci.semester_number, ci.display_order, ci.course_code
+  `).all(...curriculumFilter.params);
+
   res.render('dean/grade-entry', {
     title: 'Grade Entry - PCC Student Portal',
     activeSemester,
-    offerings,
+    gradeEntryGroups: groupGradeEntryByYear(curriculumRows, offerings),
     user: req.user
   });
 });
@@ -485,7 +625,7 @@ router.get('/year-levels', async (req, res) => {
     ORDER BY t.program_code
   `).all(...tp.params);
 
-  const yearStats = [1, 2, 3, 4].map(async year => {
+  const yearStats = await Promise.all([1, 2, 3, 4].map(async year => {
     const sc = programFilter(scope, 'program_code');
     const sc2 = programFilter(scope, 'program_code');
     return {
@@ -498,19 +638,19 @@ router.get('/year-levels', async (req, res) => {
         WHERE status = 'active' AND year_level = ? AND section IS NOT NULL AND trim(section) <> ''${sc2.clause}
       `).get(year, ...sc2.params)).c
     };
-  });
+  }));
 
-  const programs = templates.map(t => ({
+  const programs = await Promise.all(templates.map(async t => ({
     program_code: t.program_code,
     program_name: t.program_name,
-    years: [1, 2, 3, 4].map(async year => {
+    years: await Promise.all([1, 2, 3, 4].map(async year => {
       const stat = await db.prepare(`
         SELECT COUNT(*) as subjects, COALESCE(SUM(credits), 0) as units
         FROM curriculum_items WHERE template_id = ? AND semester_number IN (?, ?)
       `).get(t.template_id, year * 2 - 1, year * 2);
       return { year, subjects: stat.subjects, units: stat.units };
-    })
-  }));
+    }))
+  })));
 
   res.render('dean/year-levels', {
     title: 'Year Levels - PCC Student Portal',
@@ -574,7 +714,7 @@ router.get('/year-levels/:year', async (req, res) => {
     ORDER BY upper(trim(section))
   `).all(year, ...sec.params);
 
-  const sectionsWithRosters = sections.map(async s => {
+  const sectionsWithRosters = await Promise.all(sections.map(async s => {
     const rs = programFilter(scope, 's.program_code');
     return {
       ...s,
@@ -587,7 +727,7 @@ router.get('/year-levels/:year', async (req, res) => {
         ORDER BY s.last_name, s.first_name
       `).all(year, s.section, ...rs.params)
     };
-  });
+  }));
 
   const un = programFilter(scope, 'program_code');
   const un2 = programFilter(scope, 's.program_code');

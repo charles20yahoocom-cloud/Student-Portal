@@ -134,9 +134,13 @@
               <p class="font-medium text-gray-800">Two-Factor Authentication</p>
               <p class="text-sm text-gray-500">Protect your account with 2FA</p>
             </div>
-            <a href="/2fa/setup" class="bg-pcc-blue hover:bg-pcc-blue-dark text-white font-medium px-4 py-2 rounded-lg transition">
-              Configure
-            </a>
+            <% if (userDetails.totp_enabled) { %>
+              <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Enabled</span>
+            <% } else { %>
+              <a href="/student/2fa/setup" class="bg-pcc-blue hover:bg-pcc-blue-dark text-white font-medium px-4 py-2 rounded-lg transition">
+                Configure
+              </a>
+            <% } %>
           </div>
         </div>
       </div>

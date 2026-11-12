@@ -1,4 +1,6 @@
-<% const profileHref = (user && user.role === 'student') ? '/student/profile' : '/profile'; %>
+<% const profileHref = (user && user.role === 'student')
+  ? '/student/profile'
+  : (user && user.role === 'faculty') ? '/faculty/profile' : '/profile'; %>
 <header class="sticky top-0 z-50 text-white shadow-[0_10px_34px_-14px_rgba(7,14,46,0.75)]"
         style="background: linear-gradient(90deg, #0B1747 0%, #10215F 42%, #16307F 100%);">
   <div class="relative">

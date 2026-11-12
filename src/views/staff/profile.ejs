@@ -92,7 +92,7 @@
           <h2 class="text-lg font-semibold text-royal-900">Account Information</h2>
           <p class="text-sm text-gray-500 mt-1">Update your display name and sign-in email.</p>
         </div>
-        <form action="/profile" method="POST" class="p-6 space-y-4">
+        <form action="<%= profilePath %>" method="POST" class="p-6 space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
             <input type="text" name="full_name" value="<%= userDetails.full_name %>" required
@@ -117,7 +117,7 @@
           <h2 class="text-lg font-semibold text-royal-900">Change Password</h2>
           <p class="text-sm text-gray-500 mt-1">Choose a strong password of at least 8 characters.</p>
         </div>
-        <form action="/profile/password" method="POST" class="p-6 space-y-4">
+        <form action="<%= profilePath %>/password" method="POST" class="p-6 space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
             <input type="password" name="current_password" required autocomplete="current-password"
@@ -152,7 +152,7 @@
     if (!file) return;
     const fd = new FormData();
     fd.append('picture', file);
-    const res = await fetch('/profile/picture', { method: 'POST', body: fd });
+    const res = await fetch('<%= profilePath %>/picture', { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
     if (data.success) {
       const img = document.getElementById('avatarImg');
@@ -168,7 +168,7 @@
 
   async function removePhoto() {
     if (!confirm('Remove your profile photo?')) return;
-    const res = await fetch('/profile/picture', { method: 'DELETE' });
+    const res = await fetch('<%= profilePath %>/picture', { method: 'DELETE' });
     if (res.ok) window.location.reload();
   }
 </script>

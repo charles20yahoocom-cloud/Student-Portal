@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { authenticator } = require('otplib');
+const { generateSecret, generateURI, verify } = require('otplib');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database-runtime');
 const { requireAuth, JAR_COOKIES, jarForRole } = require('../middleware/authenticate');
@@ -645,8 +645,14 @@ router.post('/login', [
   }
 });
 
+function twoFactorSetupPath(req) {
+  return String(req.originalUrl || '').split('?')[0].startsWith('/student/2fa/')
+    ? '/student/2fa'
+    : '/2fa';
+}
+
 // GET /2fa/setup
-router.get('/2fa/setup', requireAuth, async (req, res) => {
+router.get(['/2fa/setup', '/student/2fa/setup'], requireAuth, async (req, res) => {
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
   if (user.totp_enabled) {
@@ -656,13 +662,19 @@ router.get('/2fa/setup', requireAuth, async (req, res) => {
       qrCode: null,
       secret: null,
       message: '2FA is already enabled.',
+      setupPath: `${twoFactorSetupPath(req)}/setup`,
+      verifySetupPath: `${twoFactorSetupPath(req)}/verify-setup`,
       user: req.user
     });
   }
 
   // Generate new secret
-  const secret = authenticator.generateSecret();
-  const otpauth = authenticator.keyuri(user.email, 'PCC Student Portal', secret);
+  const secret = generateSecret();
+  const otpauth = generateURI({
+    issuer: 'PCC Student Portal',
+    label: user.email,
+    secret
+  });
 
   // Store secret temporarily (not yet enabled)
   await db.prepare('UPDATE users SET totp_secret = ? WHERE id = ?').run(secret, user.id);
@@ -676,27 +688,35 @@ router.get('/2fa/setup', requireAuth, async (req, res) => {
     qrCode: qrDataUrl,
     secret: secret,
     message: null,
+    setupPath: `${twoFactorSetupPath(req)}/setup`,
+    verifySetupPath: `${twoFactorSetupPath(req)}/verify-setup`,
     user: req.user
   });
 });
 
 // POST /2fa/verify-setup
-router.post('/2fa/verify-setup', requireAuth, [
+router.post(['/2fa/verify-setup', '/student/2fa/verify-setup'], requireAuth, [
   body('code').isLength({ min: 6, max: 6 })
 ], async (req, res) => {
   const { code } = req.body;
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
-  const isValid = authenticator.verify({ token: code, secret: user.totp_secret });
+  const result = await verify({ token: code, secret: user.totp_secret });
 
-  if (!isValid) {
-    const qrDataUrl = await generateQRDataUrl(authenticator.keyuri(user.email, 'PCC Student Portal', user.totp_secret));
+  if (!result.valid) {
+    const qrDataUrl = await generateQRDataUrl(generateURI({
+      issuer: 'PCC Student Portal',
+      label: user.email,
+      secret: user.totp_secret
+    }));
     return res.render('auth/2fa-setup', {
       layout: false,
       title: '2FA Setup - PCC Student Portal',
       qrCode: qrDataUrl,
       secret: user.totp_secret,
       message: 'Invalid code. Please try again.',
+      setupPath: `${twoFactorSetupPath(req)}/setup`,
+      verifySetupPath: `${twoFactorSetupPath(req)}/verify-setup`,
       user: req.user
     });
   }
@@ -740,15 +760,20 @@ router.post('/2fa/verify', [
 
   try {
     const payload = jwt.verify(tempToken, ACCESS_SECRET);
+    if (payload.step !== '2fa') {
+      res.clearCookie('tempToken');
+      return res.redirect('/login');
+    }
+
     const user = await db.prepare('SELECT * FROM users WHERE id = ? AND totp_enabled = 1').get(payload.id);
 
     if (!user) {
       return res.redirect('/login');
     }
 
-    const isValid = authenticator.verify({ token: req.body.code, secret: user.totp_secret });
+    const result = await verify({ token: req.body.code, secret: user.totp_secret });
 
-    if (!isValid) {
+    if (!result.valid) {
       return res.render('auth/2fa-verify', {
         layout: false,
         title: '2FA Verification - PCC Student Portal',
