@@ -90,6 +90,12 @@
                   <a href="/dean/prospectus/<%= s.id %>" class="text-pcc-blue hover:text-pcc-blue-dark text-sm font-medium">
                     View Prospectus →
                   </a>
+                  <form method="POST" action="/dean/students/<%= s.id %>/delete" class="inline"
+                        onsubmit="return confirm('Permanently delete <%= s.student_no %> and all associated grades, enrollments, transcript requests, and account data? This cannot be undone.');">
+                    <button type="submit" class="ml-3 text-red-600 hover:text-red-800 text-sm font-medium">
+                      Delete
+                    </button>
+                  </form>
                 </td>
               </tr>
             <% }); %>

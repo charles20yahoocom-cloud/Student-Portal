@@ -4,6 +4,7 @@ const multer = require('multer');
 const bcrypt = require('bcrypt');
 const db = require('../config/database-runtime');
 const { requireAuth, requireRole } = require('../middleware/authenticate');
+const { removeProfileImage } = require('../utils/image-upload');
 
 // CSV imports stay in memory: bounded size, no temp files on disk to clean up.
 const upload = multer({
@@ -247,6 +248,37 @@ router.post('/students/:studentId/edit', async (req, res) => {
   await updateStudent();
 
   res.redirect('/dean/students?success=' + encodeURIComponent(`Student ${studentNo} updated.`));
+});
+
+// POST /dean/students/:studentId/delete — permanently remove the student's account and records
+router.post('/students/:studentId/delete', async (req, res) => {
+  const student = await db.prepare(`
+    SELECT s.*, u.id AS account_user_id, u.profile_picture AS user_profile_picture
+    FROM students s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.id = ?
+  `).get(req.params.studentId);
+  if (!student) return res.redirect('/dean/students?error=' + encodeURIComponent('Student not found.'));
+  if (!inScope(await deanScope(req), student.program_code)) return denyCrossDept(res, req);
+
+  const deleteStudent = await db.transaction(async () => {
+    await db.prepare('DELETE FROM grades WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM grade_audit_log WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM prospectus_entries WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM transcripts WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM student_curriculum WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM enrollments WHERE student_id = ?').run(student.id);
+    await db.prepare('DELETE FROM notifications WHERE user_id = ?').run(student.account_user_id);
+    await db.prepare('DELETE FROM backup_codes WHERE user_id = ?').run(student.account_user_id);
+    await db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(student.account_user_id);
+    await db.prepare('DELETE FROM students WHERE id = ?').run(student.id);
+    await db.prepare('DELETE FROM users WHERE id = ?').run(student.account_user_id);
+  });
+  await deleteStudent();
+
+  removeProfileImage(student.profile_picture);
+  removeProfileImage(student.user_profile_picture);
+  res.redirect('/dean/students?success=' + encodeURIComponent(`Student ${student.student_no} and their records were permanently deleted.`));
 });
 
 // GET /dean/grade-entry
