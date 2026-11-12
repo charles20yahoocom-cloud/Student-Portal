@@ -645,8 +645,14 @@ router.post('/login', [
   }
 });
 
+function twoFactorSetupPath(req) {
+  return String(req.originalUrl || '').split('?')[0].startsWith('/student/2fa/')
+    ? '/student/2fa'
+    : '/2fa';
+}
+
 // GET /2fa/setup
-router.get('/2fa/setup', requireAuth, async (req, res) => {
+router.get(['/2fa/setup', '/student/2fa/setup'], requireAuth, async (req, res) => {
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
   if (user.totp_enabled) {
@@ -656,6 +662,8 @@ router.get('/2fa/setup', requireAuth, async (req, res) => {
       qrCode: null,
       secret: null,
       message: '2FA is already enabled.',
+      setupPath: `${twoFactorSetupPath(req)}/setup`,
+      verifySetupPath: `${twoFactorSetupPath(req)}/verify-setup`,
       user: req.user
     });
   }
@@ -680,12 +688,14 @@ router.get('/2fa/setup', requireAuth, async (req, res) => {
     qrCode: qrDataUrl,
     secret: secret,
     message: null,
+    setupPath: `${twoFactorSetupPath(req)}/setup`,
+    verifySetupPath: `${twoFactorSetupPath(req)}/verify-setup`,
     user: req.user
   });
 });
 
 // POST /2fa/verify-setup
-router.post('/2fa/verify-setup', requireAuth, [
+router.post(['/2fa/verify-setup', '/student/2fa/verify-setup'], requireAuth, [
   body('code').isLength({ min: 6, max: 6 })
 ], async (req, res) => {
   const { code } = req.body;
@@ -705,6 +715,8 @@ router.post('/2fa/verify-setup', requireAuth, [
       qrCode: qrDataUrl,
       secret: user.totp_secret,
       message: 'Invalid code. Please try again.',
+      setupPath: `${twoFactorSetupPath(req)}/setup`,
+      verifySetupPath: `${twoFactorSetupPath(req)}/verify-setup`,
       user: req.user
     });
   }
