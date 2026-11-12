@@ -39,3 +39,22 @@ test('keeps existing valid foreign keys intact when applying a clean migration s
 
   db.close();
 });
+
+test('student classification migration defaults existing students to regular and rejects invalid values', () => {
+  const db = new Database(':memory:');
+  db.exec('CREATE TABLE students (id INTEGER PRIMARY KEY); INSERT INTO students (id) VALUES (1);');
+
+  const migration = fs.readFileSync(
+    path.join(__dirname, '..', 'migrations', '012_student_classification.sql'),
+    'utf8'
+  );
+  db.exec(migration);
+
+  assert.equal(db.prepare('SELECT classification FROM students WHERE id = 1').get().classification, 'regular');
+  assert.throws(
+    () => db.prepare("UPDATE students SET classification = 'probation' WHERE id = 1").run(),
+    /CHECK constraint failed/
+  );
+
+  db.close();
+});

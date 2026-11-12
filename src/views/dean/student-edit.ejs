@@ -1,0 +1,79 @@
+<%- include('../partials/header', { user: user }) %>
+<%- include('../partials/staff-topnav', { active: 'students', links: [['/dean/dashboard','Dashboard'],['/dean/year-levels','Year Levels'],['/dean/students','Students'],['/dean/grade-entry','Grade Entry'],['/dean/assignments','Assignments'],['/dean/accounts','Accounts'],['/dean/reports','Reports'],['/profile','Profile']] }) %>
+
+<main class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+  <a href="/dean/students" class="inline-flex items-center text-pcc-blue hover:text-pcc-blue-dark mb-4 font-medium">&larr; Back to Students</a>
+  <div class="hero mb-6">
+    <h1 class="text-2xl font-bold">Edit Student</h1>
+    <p class="mt-2 opacity-90"><%= student.student_no %> &middot; <%= student.email %></p>
+  </div>
+
+  <% if (error) { %>
+    <div class="panel mb-6 p-4 text-red-800 bg-red-50 border border-red-200"><%= error %></div>
+  <% } %>
+
+  <form method="POST" action="/dean/students/<%= student.id %>/edit" class="panel p-6 space-y-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block text-sm font-medium text-gray-700">Student Number
+        <input name="student_no" required maxlength="50" value="<%= student.student_no %>" class="mt-1 w-full px-3 py-2 border rounded-lg">
+      </label>
+      <label class="block text-sm font-medium text-gray-700">Program
+        <select name="program_code" required class="mt-1 w-full px-3 py-2 border rounded-lg">
+          <% programs.forEach(program => { %>
+            <option value="<%= program.code %>" <%= program.code === student.program_code ? 'selected' : '' %>><%= program.code %> - <%= program.name %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="block text-sm font-medium text-gray-700">First Name
+        <input name="first_name" required maxlength="100" value="<%= student.first_name %>" class="mt-1 w-full px-3 py-2 border rounded-lg">
+      </label>
+      <label class="block text-sm font-medium text-gray-700">Middle Name
+        <input name="middle_name" maxlength="100" value="<%= student.middle_name || '' %>" class="mt-1 w-full px-3 py-2 border rounded-lg">
+      </label>
+      <label class="block text-sm font-medium text-gray-700">Last Name
+        <input name="last_name" required maxlength="100" value="<%= student.last_name %>" class="mt-1 w-full px-3 py-2 border rounded-lg">
+      </label>
+      <label class="block text-sm font-medium text-gray-700">Gender
+        <select name="gender" class="mt-1 w-full px-3 py-2 border rounded-lg">
+          <option value="" <%= !student.gender ? 'selected' : '' %>>Not specified</option>
+          <% ['M', 'F', 'Other'].forEach(value => { %>
+            <option value="<%= value %>" <%= value === student.gender ? 'selected' : '' %>><%= value === 'M' ? 'Male' : value === 'F' ? 'Female' : 'Other' %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="block text-sm font-medium text-gray-700">Date of Birth
+        <input type="date" name="date_of_birth" value="<%= student.date_of_birth || '' %>" class="mt-1 w-full px-3 py-2 border rounded-lg">
+      </label>
+      <label class="block text-sm font-medium text-gray-700">Year Level
+        <select name="year_level" required class="mt-1 w-full px-3 py-2 border rounded-lg">
+          <% [1, 2, 3, 4].forEach(year => { %>
+            <option value="<%= year %>" <%= year === student.year_level ? 'selected' : '' %>>Year <%= year %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="block text-sm font-medium text-gray-700">Section
+        <input name="section" maxlength="10" pattern="[A-Za-z0-9][A-Za-z0-9-]*" value="<%= student.section || '' %>" placeholder="e.g. 1A" class="mt-1 w-full px-3 py-2 border rounded-lg">
+        <span class="text-xs text-gray-500">Leave blank if the student is not assigned to a section.</span>
+      </label>
+      <label class="block text-sm font-medium text-gray-700">Academic Standing
+        <select name="classification" required class="mt-1 w-full px-3 py-2 border rounded-lg">
+          <option value="regular" <%= student.classification === 'regular' ? 'selected' : '' %>>Regular</option>
+          <option value="irregular" <%= student.classification === 'irregular' ? 'selected' : '' %>>Irregular</option>
+        </select>
+      </label>
+      <label class="block text-sm font-medium text-gray-700">Enrollment Status
+        <select name="status" required class="mt-1 w-full px-3 py-2 border rounded-lg">
+          <% ['active', 'inactive', 'graduated', 'dropped', 'suspended'].forEach(status => { %>
+            <option value="<%= status %>" <%= status === student.status ? 'selected' : '' %>><%= status.charAt(0).toUpperCase() + status.slice(1) %></option>
+          <% }); %>
+        </select>
+      </label>
+    </div>
+    <div class="flex justify-end gap-3">
+      <a href="/dean/students" class="px-4 py-2 rounded-lg border text-gray-700">Cancel</a>
+      <button type="submit" class="px-5 py-2 rounded-lg bg-pcc-blue hover:bg-pcc-blue-dark text-white font-semibold">Save Student</button>
+    </div>
+  </form>
+</main>
+
+<%- include('../partials/footer') %>
