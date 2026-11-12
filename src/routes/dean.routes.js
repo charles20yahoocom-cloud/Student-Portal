@@ -485,7 +485,7 @@ router.get('/year-levels', async (req, res) => {
     ORDER BY t.program_code
   `).all(...tp.params);
 
-  const yearStats = [1, 2, 3, 4].map(async year => {
+  const yearStats = await Promise.all([1, 2, 3, 4].map(async year => {
     const sc = programFilter(scope, 'program_code');
     const sc2 = programFilter(scope, 'program_code');
     return {
@@ -498,19 +498,19 @@ router.get('/year-levels', async (req, res) => {
         WHERE status = 'active' AND year_level = ? AND section IS NOT NULL AND trim(section) <> ''${sc2.clause}
       `).get(year, ...sc2.params)).c
     };
-  });
+  }));
 
-  const programs = templates.map(t => ({
+  const programs = await Promise.all(templates.map(async t => ({
     program_code: t.program_code,
     program_name: t.program_name,
-    years: [1, 2, 3, 4].map(async year => {
+    years: await Promise.all([1, 2, 3, 4].map(async year => {
       const stat = await db.prepare(`
         SELECT COUNT(*) as subjects, COALESCE(SUM(credits), 0) as units
         FROM curriculum_items WHERE template_id = ? AND semester_number IN (?, ?)
       `).get(t.template_id, year * 2 - 1, year * 2);
       return { year, subjects: stat.subjects, units: stat.units };
-    })
-  }));
+    }))
+  })));
 
   res.render('dean/year-levels', {
     title: 'Year Levels - PCC Student Portal',
@@ -574,7 +574,7 @@ router.get('/year-levels/:year', async (req, res) => {
     ORDER BY upper(trim(section))
   `).all(year, ...sec.params);
 
-  const sectionsWithRosters = sections.map(async s => {
+  const sectionsWithRosters = await Promise.all(sections.map(async s => {
     const rs = programFilter(scope, 's.program_code');
     return {
       ...s,
@@ -587,7 +587,7 @@ router.get('/year-levels/:year', async (req, res) => {
         ORDER BY s.last_name, s.first_name
       `).all(year, s.section, ...rs.params)
     };
-  });
+  }));
 
   const un = programFilter(scope, 'program_code');
   const un2 = programFilter(scope, 's.program_code');

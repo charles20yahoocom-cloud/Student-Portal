@@ -72,6 +72,46 @@
         </table>
       </div>
     </div>
+
+    <!-- Current semester student roster -->
+    <div class="panel mt-8">
+      <div class="p-6 border-b">
+        <h2 class="text-lg font-semibold text-gray-800">My Students</h2>
+        <p class="text-sm text-gray-500 mt-1">
+          <%= activeSemester ? activeSemester.name + ' ' + activeSemester.school_year : 'No active semester' %>
+        </p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student No.</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Program</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year Level</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <% if (teacherStudents.length > 0) { %>
+              <% teacherStudents.forEach(student => { %>
+                <tr>
+                  <td class="px-6 py-4 font-medium text-gray-800"><%= student.student_no %></td>
+                  <td class="px-6 py-4 text-gray-600"><%= student.last_name %>, <%= student.first_name %></td>
+                  <td class="px-6 py-4 text-gray-600"><%= student.program_code %></td>
+                  <td class="px-6 py-4 text-gray-600">Year <%= student.year_level %></td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                  No enrolled students in your classes for this semester.
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </main>
 </div>
 

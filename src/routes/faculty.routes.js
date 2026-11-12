@@ -109,14 +109,14 @@ router.get('/dashboard', async (req, res) => {
   `).all(req.user.id, activeSemester.id) : [];
 
   // Students in this teacher's classes
-  const teacherStudents = await db.prepare(`
+  const teacherStudents = activeSemester ? await db.prepare(`
     SELECT DISTINCT s.id, s.student_no, s.first_name, s.last_name, s.program_code, s.year_level
     FROM students s
     JOIN enrollments e ON e.student_id = s.id
     JOIN course_offerings co ON e.offering_id = co.id
-    WHERE co.instructor_id = ?
+    WHERE co.instructor_id = ? AND co.semester_id = ? AND e.status = 'enrolled'
     ORDER BY s.last_name, s.first_name
-  `).all(req.user.id);
+  `).all(req.user.id, activeSemester.id) : [];
 
   res.render('faculty/dashboard', {
     title: 'Teacher Dashboard - PCC Student Portal',
