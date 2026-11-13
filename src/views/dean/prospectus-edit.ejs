@@ -1,0 +1,124 @@
+<%- include('../partials/header', { user: user }) %>
+  <%- include('../partials/staff-topnav', { active: 'prospectus', links: [['/dean/dashboard','Dashboard'],['/dean/grade-entry','Grade Entry'],['/dean/assignments','Assignments'],['/dean/accounts','Accounts'],['/dean/reports','Reports']] }) %>
+
+<%
+  const sems = {};
+  curriculum.forEach(ci => {
+    if (!sems[ci.semester_number]) sems[ci.semester_number] = [];
+    sems[ci.semester_number].push(ci);
+  });
+  const yearWord = ['', 'First', 'Second', 'Third', 'Fourth'];
+  const semWord = ['', '1st', '2nd'];
+  const overrideCount = Object.keys(overrides || {}).length;
+%>
+
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-28">
+  <div class="mb-6">
+    <a href="/dean/prospectus/<%= student.id %>" class="inline-flex items-center text-pcc-blue hover:text-pcc-blue-dark text-sm">
+      &larr; Back to prospectus
+    </a>
+    <h1 class="text-2xl font-bold text-gray-800 mt-2">Edit Prospectus</h1>
+    <p class="text-gray-600 mt-1">
+      <%= student.last_name %>, <%= student.first_name %> &middot; <%= student.student_no %> &middot; <%= student.program_code %>
+    </p>
+  </div>
+
+  <% if (saved) { %>
+    <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+      Saved. The student has been notified of the change.
+    </div>
+  <% } %>
+
+  <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    <p class="font-semibold mb-1">How corrections work</p>
+    <p>
+      A grade entered here overrides the instructor's grade on the student's prospectus.
+      The original instructor grade is never deleted &mdash; every change is recorded in the grade audit trail.
+      Leave both fields blank to hand the course back to the instructor's grade.
+    </p>
+    <p class="mt-2">Currently overridden: <strong><%= overrideCount %></strong> course<%= overrideCount === 1 ? '' : 's' %>.</p>
+  </div>
+
+  <form method="POST" action="/dean/prospectus/<%= student.id %>/edit" id="prospectus-edit-form">
+    <% for (let sem = 1; sem <= 8; sem++) { %>
+      <% const items = sems[sem] || []; %>
+      <% if (!items.length) continue; %>
+      <% const year = Math.ceil(sem / 2); %>
+
+      <section class="panel mb-4 overflow-hidden">
+        <header class="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="font-semibold text-gray-800"><%= yearWord[year] %> Year &middot; <%= semWord[((sem - 1) % 2) + 1] %> Semester</h2>
+          <span class="text-xs text-gray-500"><%= items.reduce((s, c) => s + c.credits, 0) %> units</span>
+        </header>
+
+        <div class="divide-y divide-gray-100">
+          <% items.forEach(course => { %>
+            <%
+              const g = grades[course.course_code];
+              const o = overrides ? overrides[course.course_code] : null;
+            %>
+            <div class="p-4 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_7rem_7rem_auto] gap-3 md:items-center">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-800">
+                  <%= course.course_code %> <span class="text-gray-500 font-normal">&middot; <%= course.credits %> units</span>
+                </p>
+                <p class="text-sm text-gray-600 truncate" title="<%= course.course_name %>"><%= course.course_name %></p>
+                <p class="text-xs text-gray-500 mt-1">
+                  Instructor grade:
+                  <% if (g && g.grade_value) { %>
+                    <span class="font-semibold text-gray-700"><%= g.grade_value %></span>
+                  <% } else { %>
+                    <span class="italic">not encoded</span>
+                  <% } %>
+                  <% if (o) { %><span class="text-amber-700 font-medium">&middot; overridden</span><% } %>
+                </p>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-medium text-gray-500 mb-1">Grade</label>
+                <input type="text" inputmode="decimal" name="grade"
+                  value="<%= o && o.grade_value ? o.grade_value : '' %>"
+                  placeholder="<%= g && g.grade_value ? g.grade_value : '1.00-5.00' %>"
+                  class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-pcc-blue outline-none">
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-medium text-gray-500 mb-1">Remarks</label>
+                <input type="text" name="remarks" maxlength="160"
+                  value="<%= o && o.remarks ? o.remarks : '' %>"
+                  placeholder="Optional"
+                  class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-pcc-blue outline-none">
+              </div>
+
+              <div class="md:pt-4">
+                <input type="hidden" name="courseCode" value="<%= course.course_code %>">
+                <button type="submit"
+                  formaction="/dean/prospectus/<%= student.id %>/overrides/clear"
+                  formmethod="post"
+                  name="clearCourse" value="<%= course.course_code %>"
+                  <%= o ? '' : 'disabled' %>
+                  class="w-full md:w-auto px-3 py-2 text-xs font-medium rounded-lg border transition <%= o ? 'border-amber-300 text-amber-800 hover:bg-amber-50' : 'border-gray-200 text-gray-400 cursor-not-allowed' %>">
+                  Use instructor grade
+                </button>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      </section>
+    <% } %>
+
+    <div class="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white/95 backdrop-blur px-4 py-3 no-print">
+      <div class="max-w-5xl mx-auto flex items-center justify-between gap-3">
+        <p class="text-xs text-gray-500 hidden sm:block">Only changed rows are saved. Clearing both fields reverts that course.</p>
+        <div class="flex items-center gap-2 ml-auto">
+          <a href="/dean/prospectus/<%= student.id %>" class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</a>
+          <button type="submit" class="bg-pcc-blue hover:bg-pcc-blue-dark text-white font-semibold px-6 py-2 rounded-lg transition">
+            Save Prospectus
+          </button>
+        </div>
+      </div>
+    </div>
+  </form>
+</main>
+
+<%- include('../partials/footer') %>

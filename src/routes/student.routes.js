@@ -100,6 +100,25 @@ router.get('/prospectus', async (req, res) => {
   const grades = {};
   gradeRows.forEach(g => { if (!(g.course_code in grades)) grades[g.course_code] = g; });
 
+  // Dean corrections (overrides) win over the instructor's encoded grade.
+  const overrideRows = await db.prepare(
+    'SELECT * FROM prospectus_overrides WHERE student_id = ?'
+  ).all(student.id);
+  let hasOverrides = false;
+  for (const override of overrideRows) {
+    hasOverrides = true;
+    const base = grades[override.course_code] || {};
+    grades[override.course_code] = {
+      ...base,
+      grade_value: override.grade_value,
+      grade_points: override.grade_points,
+      remarks: override.remarks,
+      is_override: true,
+      original_grade_value: base.grade_value || null,
+      override_at: override.updated_at
+    };
+  }
+
   const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1 ORDER BY id DESC LIMIT 1').get();
 
   res.render('student/prospectus', {
@@ -107,6 +126,7 @@ router.get('/prospectus', async (req, res) => {
     student,
     curriculum,
     grades,
+    hasOverrides,
     semester: activeSemester || null,
     user: req.user
   });

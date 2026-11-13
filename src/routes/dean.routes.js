@@ -54,6 +54,19 @@ function denyCrossDept(res, req) {
   });
 }
 
+// Philippine numeric grading: 1.00 (100, highest), 3.00 (75, passing), 5.00 (failure).
+// Quarter increments only; marks like INC/DRP are handled as remarks.
+function parsePhGrade(input) {
+  const raw = parseFloat(input);
+  if (isNaN(raw)) return null;
+  if (raw < 1 || raw > 5) return null;
+  if (Math.round(raw * 4) !== raw * 4) return null;
+  return {
+    gradeValue: raw.toFixed(2),
+    gradePoints: +(5 - raw).toFixed(2)
+  };
+}
+
 // Department ids a dean heads (null for unscoped admins, [] when heading none).
 async function deanDeptIds(req) {
   if (req.user.role !== 'dean') return null;
@@ -166,7 +179,9 @@ router.get('/grade-entry', async (req, res) => {
   const off = programFilter(scope, 'co.program_code');
   const offerings = activeSemester ? await db.prepare(`
     SELECT co.*,
-      (SELECT COUNT(*) FROM enrollments e WHERE e.offering_id = co.id AND e.status = 'enrolled') as enrolled_count
+      (SELECT COUNT(*) FROM enrollments e WHERE e.offering_id = co.id AND e.status = 'enrolled') as enrolled_count,
+      (SELECT gs.status FROM grade_submissions gs WHERE gs.offering_id = co.id) as submission_status,
+      (SELECT gs.submitted_at FROM grade_submissions gs WHERE gs.offering_id = co.id) as submitted_at
     FROM course_offerings co
     WHERE co.semester_id = ?${off.clause}
     ORDER BY co.course_code
@@ -200,10 +215,18 @@ router.get('/grade-entry/:offeringId', async (req, res) => {
     ORDER BY s.last_name, s.first_name
   `).all(req.params.offeringId);
 
+  const submission = await db.prepare(`
+    SELECT gs.*, u.full_name as submitted_by_name
+    FROM grade_submissions gs
+    JOIN users u ON u.id = gs.submitted_by
+    WHERE gs.offering_id = ?
+  `).get(offering.id);
+
   res.render('dean/grade-entry-form', {
     title: `Grade Entry - ${offering.course_code} - PCC Student Portal`,
     offering,
     students,
+    submission,
     activeSemester,
     user: req.user
   });
@@ -237,17 +260,6 @@ router.post('/grades/batch', async (req, res) => {
 
   // Philippine numeric grading: 1.00 (≈100, highest) → 3.00 (=75, passing) → 5.00 (failure)
   // Quarter increments: 1.00, 1.25, 1.50, ... 4.50, 5.00 (marks like INC/DRP handled as remarks)
-  function parsePhGrade(input) {
-    const raw = parseFloat(input);
-    if (isNaN(raw)) return null;
-    if (raw < 1 || raw > 5) return null;
-    if (Math.round(raw * 4) !== raw * 4) return null; // must be a quarter step
-    return {
-      gradeValue: raw.toFixed(2),
-      gradePoints: +(5 - raw).toFixed(2) // convert to 4.0-scale so GPA/at-risk reports keep working
-    };
-  }
-
   const insertGrade = db.prepare(`
     INSERT INTO grades (enrollment_id, student_id, course_code, semester_id, grade_value, grade_points, credits, remarks, encoded_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -417,6 +429,72 @@ router.post('/grades/release', async (req, res) => {
   }
 });
 
+// Resolve the curriculum a student should be shown (assigned template, else
+// the newest official template for their program).
+async function resolveStudentCurriculum(student) {
+  let templateId = null;
+  const assigned = await db.prepare('SELECT template_id FROM student_curriculum WHERE student_id = ?').get(student.id);
+  if (assigned) templateId = assigned.template_id;
+  if (!templateId) {
+    const tpl = await db.prepare(`
+      SELECT id FROM curriculum_templates
+      WHERE program_code = ?
+        AND EXISTS (SELECT 1 FROM curriculum_items ci WHERE ci.template_id = curriculum_templates.id)
+      ORDER BY id DESC LIMIT 1
+    `).get(student.program_code);
+    templateId = tpl ? tpl.id : null;
+  }
+  const curriculum = templateId ? await db.prepare(`
+    SELECT * FROM curriculum_items
+    WHERE template_id = ?
+    ORDER BY semester_number, display_order
+  `).all(templateId) : [];
+  return { templateId, curriculum };
+}
+
+// A dean override wins over the instructor's grade on the prospectus, while the
+// original grade row is kept untouched (and preserved in grade_audit_log).
+function mergeProspectusOverrides(grades, overrideRows) {
+  const overrides = {};
+  for (const row of overrideRows) overrides[row.course_code] = row;
+
+  for (const code of Object.keys(overrides)) {
+    const override = overrides[code];
+    const base = grades[code] || {};
+    grades[code] = {
+      ...base,
+      grade_value: override.grade_value,
+      grade_points: override.grade_points,
+      remarks: override.remarks,
+      is_override: true,
+      original_grade_value: base.grade_value || null,
+      override_by: override.updated_by,
+      override_at: override.updated_at
+    };
+  }
+  return overrides;
+}
+
+// Every dean edit is written to the existing grade audit trail.
+async function writeOverrideAudit(studentId, courseCode, oldGrade, newGrade, userId) {
+  const grade = await db.prepare(
+    'SELECT semester_id FROM grades WHERE student_id = ? AND course_code = ? ORDER BY encoded_at DESC LIMIT 1'
+  ).get(studentId, courseCode);
+
+  let semesterId = grade ? grade.semester_id : null;
+  if (!semesterId) {
+    const latest = await db.prepare('SELECT id FROM semesters WHERE is_active = 1 ORDER BY id DESC LIMIT 1').get()
+      || await db.prepare('SELECT id FROM semesters ORDER BY id DESC LIMIT 1').get();
+    semesterId = latest ? latest.id : null;
+  }
+  if (!semesterId) return;
+
+  await db.prepare(`
+    INSERT INTO grade_audit_log (student_id, course_code, semester_id, old_grade, new_grade, encoded_by, reason)
+    VALUES (?, ?, ?, ?, ?, ?, 'Dean prospectus override')
+  `).run(studentId, courseCode, semesterId, oldGrade || null, newGrade, userId);
+}
+
 // GET /dean/prospectus/:studentId
 router.get('/prospectus/:studentId', async (req, res) => {
   const student = await db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.studentId);
@@ -440,37 +518,191 @@ router.get('/prospectus/:studentId', async (req, res) => {
   const grades = {};
   gradeRows.forEach(g => { if (!(g.course_code in grades)) grades[g.course_code] = g; });
 
-  // Resolve the student's curriculum template; fall back to the official
-  // program template so every student shows the full prospectus.
-  let templateId = null;
-  const assigned = await db.prepare('SELECT template_id FROM student_curriculum WHERE student_id = ?').get(student.id);
-  if (assigned) templateId = assigned.template_id;
-  if (!templateId) {
-    const tpl = await db.prepare(`
-      SELECT id FROM curriculum_templates
-      WHERE program_code = ?
-        AND EXISTS (SELECT 1 FROM curriculum_items ci WHERE ci.template_id = curriculum_templates.id)
-      ORDER BY id DESC LIMIT 1
-    `).get(student.program_code);
-    templateId = tpl ? tpl.id : null;
-  }
+  const overrideRows = await db.prepare(
+    'SELECT * FROM prospectus_overrides WHERE student_id = ?'
+  ).all(student.id);
+  const overrides = mergeProspectusOverrides(grades, overrideRows);
 
-  const curriculum = templateId ? await db.prepare(`
-    SELECT * FROM curriculum_items
-    WHERE template_id = ?
-    ORDER BY semester_number, display_order
-  `).all(templateId) : [];
-
+  const { curriculum } = await resolveStudentCurriculum(student);
   const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1 ORDER BY id DESC LIMIT 1').get();
 
   res.render('dean/prospectus', {
     title: `Prospectus - ${student.first_name} ${student.last_name} - PCC Student Portal`,
     student,
     grades,
+    overrides,
     curriculum,
+    saved: Number(req.query.saved) || 0,
+    invalid: String(req.query.invalid || ''),
     semester: activeSemester || null,
     user: req.user
   });
+});
+
+// GET /dean/prospectus/:studentId/edit - correct grades on a student's prospectus
+router.get('/prospectus/:studentId/edit', async (req, res) => {
+  const student = await db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.studentId);
+
+  if (!student) {
+    return res.redirect('/dean/students');
+  }
+  if (!inScope(await deanScope(req), student.program_code)) {
+    return denyCrossDept(res, req);
+  }
+
+  const { curriculum } = await resolveStudentCurriculum(student);
+
+  const gradeRows = await db.prepare(
+    'SELECT * FROM grades WHERE student_id = ? ORDER BY encoded_at DESC'
+  ).all(student.id);
+  const grades = {};
+  gradeRows.forEach(g => { if (!(g.course_code in grades)) grades[g.course_code] = g; });
+
+  const overrides = {};
+  (await db.prepare('SELECT * FROM prospectus_overrides WHERE student_id = ?').all(student.id))
+    .forEach(o => { overrides[o.course_code] = o; });
+
+  res.render('dean/prospectus-edit', {
+    title: `Edit Prospectus - ${student.first_name} ${student.last_name} - PCC Student Portal`,
+    student,
+    curriculum,
+    grades,
+    overrides,
+    saved: Number(req.query.saved) || 0,
+    user: req.user
+  });
+});
+
+// POST /dean/prospectus/:studentId/edit - save dean overrides
+router.post('/prospectus/:studentId/edit', async (req, res) => {
+  const student = await db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.studentId);
+
+  if (!student) {
+    return res.redirect('/dean/students');
+  }
+  if (!inScope(await deanScope(req), student.program_code)) {
+    return denyCrossDept(res, req);
+  }
+
+  const { curriculum } = await resolveStudentCurriculum(student);
+  const allowed = new Set(curriculum.map(c => c.course_code));
+
+  const codes = [].concat(req.body.courseCode || []);
+  const gradeInputs = [].concat(req.body.grade || []);
+  const remarksInputs = [].concat(req.body.remarks || []);
+
+  let changed = 0;
+  const invalid = [];
+
+  for (let i = 0; i < codes.length; i++) {
+    const code = String(codes[i] || '').trim();
+    if (!allowed.has(code)) continue;
+
+    const rawGrade = String(gradeInputs[i] ?? '').trim();
+    const remarks = String(remarksInputs[i] ?? '').trim().slice(0, 160);
+
+    let parsed = null;
+    if (rawGrade) {
+      parsed = parsePhGrade(rawGrade);
+      if (!parsed) {
+        invalid.push(code);
+        continue;
+      }
+    }
+
+    const existing = await db.prepare(
+      'SELECT * FROM prospectus_overrides WHERE student_id = ? AND course_code = ?'
+    ).get(student.id, code);
+
+    // Empty grade + empty remarks means "no override" (revert to instructor).
+    if (!rawGrade && !remarks) {
+      if (!existing) continue;
+      await db.prepare('DELETE FROM prospectus_overrides WHERE student_id = ? AND course_code = ?')
+        .run(student.id, code);
+      await writeOverrideAudit(student.id, code, existing.grade_value, '(reverted to instructor grade)', req.user.id);
+      changed++;
+      continue;
+    }
+
+    if (existing && (existing.grade_value || '') === rawGrade && (existing.remarks || '') === remarks) {
+      continue;
+    }
+
+    await db.prepare(`
+      INSERT INTO prospectus_overrides (student_id, course_code, grade_value, grade_points, remarks, updated_by, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(student_id, course_code) DO UPDATE SET
+        grade_value = excluded.grade_value,
+        grade_points = excluded.grade_points,
+        remarks = excluded.remarks,
+        updated_by = excluded.updated_by,
+        updated_at = excluded.updated_at
+    `).run(student.id, code, rawGrade || null, parsed ? parsed.gradePoints : null, remarks || null, req.user.id);
+
+    await writeOverrideAudit(
+      student.id,
+      code,
+      existing ? existing.grade_value : null,
+      parsed ? parsed.gradeValue : '(blank)',
+      req.user.id
+    );
+    changed++;
+  }
+
+  if (changed) {
+    await db.prepare(`
+      INSERT INTO notifications (user_id, title, message, type)
+      VALUES (?, 'Prospectus Updated', ?, 'prospectus_update')
+    `).run(
+      student.user_id,
+      `Your prospectus was updated by the Dean (${changed} course${changed === 1 ? '' : 's'}).`
+    );
+  }
+
+  const query = new URLSearchParams();
+  if (changed) query.set('saved', String(changed));
+  if (invalid.length) query.set('invalid', invalid.join(', '));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  res.redirect(`/dean/prospectus/${student.id}${suffix}`);
+});
+
+// POST /dean/prospectus/:studentId/overrides/clear - revert one course to the instructor's grade
+router.post('/prospectus/:studentId/overrides/clear', async (req, res) => {
+  const student = await db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.studentId);
+
+  if (!student) {
+    return res.redirect('/dean/students');
+  }
+  if (!inScope(await deanScope(req), student.program_code)) {
+    return denyCrossDept(res, req);
+  }
+
+  const code = String(
+    req.body.clearCourse || (typeof req.body.courseCode === 'string' ? req.body.courseCode : '')
+  ).trim();
+
+  if (code) {
+    const allowed = new Set((await resolveStudentCurriculum(student)).curriculum.map(c => c.course_code));
+    if (!allowed.has(code)) {
+      return denyCrossDept(res, req);
+    }
+
+    const existing = await db.prepare(
+      'SELECT * FROM prospectus_overrides WHERE student_id = ? AND course_code = ?'
+    ).get(student.id, code);
+
+    if (existing) {
+      await db.prepare('DELETE FROM prospectus_overrides WHERE student_id = ? AND course_code = ?')
+        .run(student.id, code);
+      await writeOverrideAudit(student.id, code, existing.grade_value, '(reverted to instructor grade)', req.user.id);
+      await db.prepare(`
+        INSERT INTO notifications (user_id, title, message, type)
+        VALUES (?, 'Prospectus Updated', ?, 'prospectus_update')
+      `).run(student.user_id, `The Dean reverted ${code} to the instructor's grade on your prospectus.`);
+    }
+  }
+
+  res.redirect(`/dean/prospectus/${student.id}/edit?saved=${code ? 1 : 0}`);
 });
 
 // GET /dean/year-levels (browse every year level: subjects + sections)

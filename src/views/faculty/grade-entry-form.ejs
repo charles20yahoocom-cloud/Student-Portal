@@ -62,10 +62,21 @@
             </select>
           </button>
           <button onclick="saveGrades()" class="bg-pcc-blue hover:bg-pcc-blue-dark text-white font-semibold px-6 py-2 rounded-lg transition">
-            Submit Grades
+            <%= typeof submission !== 'undefined' && submission ? 'Resubmit Grades' : 'Submit Grades' %>
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Submission status -->
+    <% const submitted = typeof submission !== 'undefined' && submission; %>
+    <div class="mb-4 rounded-lg border px-4 py-3 text-sm <%= submitted ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-900' %>">
+      <% if (submitted) { %>
+        <strong>Submitted</strong> by <%= submission.submitted_by_name %> on <%= submission.submitted_at %>.
+        Saved grades are already visible on each student's prospectus. Re-submitting refreshes the timestamp.
+      <% } else { %>
+        <strong>Not submitted yet.</strong> Enter grades and press Submit so the dean is notified and the prospectus reflects them.
+      <% } %>
     </div>
 
     <!-- Grade Entry Table -->

@@ -80,8 +80,25 @@
         </svg>
         Print
       </button>
+      <a href="/dean/prospectus/<%= student.id %>/edit" class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-medium px-3 py-2 sm:px-4 text-sm sm:text-base rounded-lg transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+        </svg>
+        Edit Grades
+      </a>
       </div>
     </div>
+
+    <% if (typeof saved !== 'undefined' && saved) { %>
+      <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 no-print">
+        Saved <%= saved %> prospectus update<%= saved === 1 ? '' : 's' %>. The student has been notified.
+      </div>
+    <% } %>
+    <% if (typeof invalid !== 'undefined' && invalid) { %>
+      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 no-print">
+        Ignored invalid grade<%= invalid.includes(',') ? 's' : '' %> for: <strong><%= invalid %></strong>. Use 1.00&ndash;5.00 in quarter steps.
+      </div>
+    <% } %>
 
     <!-- Official prospectus document -->
     <div class="prospectus-sheet bg-white shadow-lg mx-auto" style="max-width: 1200px;">
@@ -169,8 +186,13 @@
                           <% const g = grades[course.course_code]; %>
                           <tr>
                             <td class="border border-gray-500 px-2 py-1 text-center font-medium text-gray-800 whitespace-nowrap"><%= course.course_code %></td>
-                            <td class="border border-gray-500 px-2 py-1 text-gray-700"><%= course.course_name %></td>
-                            <td class="border border-gray-500 px-2 py-1 text-center text-gray-900 whitespace-nowrap"><%= g && g.grade_value ? g.grade_value : '' %></td>
+                            <td class="border border-gray-500 px-2 py-1 text-gray-700">
+                              <%= course.course_name %>
+                              <% if (g && g.is_override && g.remarks) { %>
+                                <span class="block text-[10px] italic text-amber-700"><%= g.remarks %></span>
+                              <% } %>
+                            </td>
+                            <td class="border border-gray-500 px-2 py-1 text-center text-gray-900 whitespace-nowrap"><%= g && g.grade_value ? g.grade_value : '' %><% if (g && g.is_override) { %><span class="text-amber-600 font-bold" title="Adjusted by the Dean<%= g.original_grade_value ? ' (instructor: ' + g.original_grade_value + ')' : '' %>">*</span><% } %></td>
                             <td class="border border-gray-500 px-2 py-1 text-center text-gray-600 hidden sm:table-cell"><%= course.lec_hours != null ? course.lec_hours : course.credits %></td>
                             <td class="border border-gray-500 px-2 py-1 text-center text-gray-600 hidden sm:table-cell"><%= course.lab_hours != null ? course.lab_hours : 0 %></td>
                             <td class="border border-gray-500 px-2 py-1 text-center text-gray-900 whitespace-nowrap"><%= course.credits %></td>
@@ -196,8 +218,11 @@
             </div>
           <% } %>
 
-          <div class="mt-6 flex items-center justify-between text-sm prospectus-total">
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm prospectus-total">
             <p class="font-semibold text-gray-800">Total Units: <span class="text-gray-900"><%= totalUnits %></span></p>
+            <% if (Object.keys(overrides || {}).length) { %>
+              <p class="text-[11px] text-amber-700">* Grade adjusted by the Dean &mdash; <a href="/dean/prospectus/<%= student.id %>/edit" class="underline no-print">manage</a></p>
+            <% } %>
           </div>
 
           <div class="mt-10 mb-4 flex justify-end prospectus-sign">

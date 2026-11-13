@@ -94,6 +94,40 @@ function normalizeStudentNo(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// Record the instructor's submission for a class (one row per offering) and
+// tell the deans who own the program that the grades are ready for review.
+// Deans are notified on the first submission only, not on every re-save.
+async function recordGradeSubmission(offering, user, submittedCount) {
+  const previous = await db.prepare('SELECT status FROM grade_submissions WHERE offering_id = ?').get(offering.id);
+
+  await db.prepare(`
+    INSERT INTO grade_submissions (offering_id, submitted_by, submitted_at, status)
+    VALUES (?, ?, datetime('now'), 'submitted')
+    ON CONFLICT(offering_id) DO UPDATE SET
+      submitted_by = excluded.submitted_by,
+      submitted_at = excluded.submitted_at,
+      status = 'submitted'
+  `).run(offering.id, user.id);
+
+  if (previous && previous.status === 'submitted') return;
+
+  const deans = offering.program_code
+    ? await db.prepare(`
+        SELECT DISTINCT u.id
+        FROM users u
+        JOIN departments d ON d.hod_user_id = u.id
+        JOIN programs p ON p.department_id = d.id
+        WHERE p.code = ? AND u.role = 'dean' AND u.is_active = 1
+      `).all(offering.program_code)
+    : await db.prepare("SELECT id FROM users WHERE role = 'dean' AND is_active = 1").all();
+
+  const message = `${offering.course_code} Sec. ${offering.section} - ${submittedCount} grade(s) submitted by ${user.fullName || 'the instructor'}.`;
+  for (const dean of deans) {
+    await db.prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Grades Submitted', ?, 'grade_submission')")
+      .run(dean.id, message);
+  }
+}
+
 // All faculty routes require auth and faculty role
 router.use(requireAuth);
 router.use(requireRole('faculty'));
@@ -165,7 +199,9 @@ router.get('/grade-entry', async (req, res) => {
       (SELECT COUNT(*) FROM enrollments e WHERE e.offering_id = co.id AND e.status = 'enrolled') as enrolled_count,
       (SELECT COUNT(*) FROM enrollments e
         JOIN grades g ON g.enrollment_id = e.id
-        WHERE e.offering_id = co.id) as graded_count
+        WHERE e.offering_id = co.id) as graded_count,
+      (SELECT gs.status FROM grade_submissions gs WHERE gs.offering_id = co.id) as submission_status,
+      (SELECT gs.submitted_at FROM grade_submissions gs WHERE gs.offering_id = co.id) as submitted_at
     FROM course_offerings co
     WHERE co.instructor_id = ? AND co.semester_id = ?
     ORDER BY co.course_code, co.section
@@ -198,10 +234,18 @@ router.get('/grade-entry/:offeringId', async (req, res) => {
     ORDER BY s.last_name, s.first_name
   `).all(req.params.offeringId);
 
+  const submission = await db.prepare(`
+    SELECT gs.*, u.full_name as submitted_by_name
+    FROM grade_submissions gs
+    JOIN users u ON u.id = gs.submitted_by
+    WHERE gs.offering_id = ?
+  `).get(offering.id);
+
   res.render('faculty/grade-entry-form', {
     title: `Grade Entry - ${offering.course_code} - PCC Student Portal`,
     offering,
     students,
+    submission,
     activeSemester,
     user: req.user
   });
@@ -283,6 +327,11 @@ router.post('/grades/batch', async (req, res) => {
 
   try {
     const saved = await transaction();
+    try {
+      await recordGradeSubmission(offering, req.user, saved);
+    } catch (recordErr) {
+      console.error('Grade submission record failed:', recordErr.message);
+    }
     res.json({ success: true, saved });
   } catch (err) {
     console.error('Batch grade save error:', err);
@@ -453,6 +502,11 @@ router.post('/grades/import', importUpload.single('file'), async (req, res) => {
 
   try {
     const imported = await transaction();
+    try {
+      await recordGradeSubmission(offering, req.user, imported);
+    } catch (recordErr) {
+      console.error('Grade submission record failed:', recordErr.message);
+    }
     res.json({ success: true, imported, skipped, blank });
   } catch (err) {
     console.error('Grade import error:', err);

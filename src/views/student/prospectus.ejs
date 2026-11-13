@@ -199,8 +199,13 @@
                           <% const g = grades[course.course_code]; %>
                           <tr>
                             <td class="border border-gray-500 px-2 py-1 text-center font-medium text-gray-800 whitespace-nowrap"><%= course.course_code %></td>
-                            <td class="border border-gray-500 px-2 py-1 text-gray-700"><%= course.course_name %></td>
-                            <td class="border border-gray-500 px-2 py-1 text-center text-gray-900 whitespace-nowrap"><%= g && g.grade_value ? g.grade_value : '' %></td>
+                            <td class="border border-gray-500 px-2 py-1 text-gray-700">
+                              <%= course.course_name %>
+                              <% if (g && g.is_override && g.remarks) { %>
+                                <span class="block text-[10px] italic text-amber-700"><%= g.remarks %></span>
+                              <% } %>
+                            </td>
+                            <td class="border border-gray-500 px-2 py-1 text-center text-gray-900 whitespace-nowrap"><%= g && g.grade_value ? g.grade_value : '' %><% if (g && g.is_override) { %><span class="text-amber-600 font-bold" title="Adjusted by the Dean<%= g.original_grade_value ? ' (instructor: ' + g.original_grade_value + ')' : '' %>">*</span><% } %></td>
                             <td class="border border-gray-500 px-2 py-1 text-center text-gray-600 hidden sm:table-cell"><%= course.lec_hours != null ? course.lec_hours : course.credits %></td>
                             <td class="border border-gray-500 px-2 py-1 text-center text-gray-600 hidden sm:table-cell"><%= course.lab_hours != null ? course.lab_hours : 0 %></td>
                             <td class="border border-gray-500 px-2 py-1 text-center text-gray-900 whitespace-nowrap"><%= course.credits %></td>
@@ -226,8 +231,11 @@
             </div>
           <% } %>
 
-          <div class="mt-6 flex items-center justify-between text-sm prospectus-total">
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm prospectus-total">
             <p class="font-semibold text-gray-800">Total Units: <span class="text-gray-900"><%= totalUnits %></span></p>
+            <% if (hasOverrides) { %>
+              <p class="text-[11px] text-amber-700">* Grade adjusted by the Dean</p>
+            <% } %>
           </div>
 
           <div class="mt-10 mb-4 flex justify-end prospectus-sign">

@@ -77,6 +77,17 @@
       </div>
     </div>
 
+    <!-- Submission status -->
+    <% const submitted = typeof submission !== 'undefined' && submission; %>
+    <div class="mb-4 rounded-lg border px-4 py-3 text-sm <%= submitted ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-900' %>">
+      <% if (submitted) { %>
+        <strong>Submitted</strong> by <%= submission.submitted_by_name %> on <%= submission.submitted_at %>.
+        Grades are visible on each student's prospectus. Saving again updates the grades shown.
+      <% } else { %>
+        <strong>Not submitted yet.</strong> Saving grades makes them visible on the prospectus. The instructor can submit formally from their portal to notify the department.
+      <% } %>
+    </div>
+
     <!-- Grade Entry Table -->
     <div class="panel overflow-hidden">
       <div class="overflow-x-auto">
