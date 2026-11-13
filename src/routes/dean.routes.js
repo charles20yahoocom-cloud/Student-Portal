@@ -4,6 +4,7 @@ const multer = require('multer');
 const bcrypt = require('bcrypt');
 const db = require('../config/database-runtime');
 const { requireAuth, requireRole } = require('../middleware/authenticate');
+const { courseYearMap, attachYearLevels } = require('../utils/curriculum');
 
 // CSV imports stay in memory: bounded size, no temp files on disk to clean up.
 const upload = multer({
@@ -38,6 +39,18 @@ function programFilter(scope, column) {
 function inScope(scope, code) {
   if (!scope) return true;
   return scope.programCodes.includes(code);
+}
+
+// Year level for each course, taken from the newest official curriculum
+// template of the offering's program.
+async function curriculumYearMap() {
+  const rows = await db.prepare(`
+    SELECT t.program_code, ci.course_code, ci.semester_number
+    FROM curriculum_items ci
+    JOIN curriculum_templates t ON t.id = ci.template_id
+    WHERE t.id = (SELECT MAX(id) FROM curriculum_templates c WHERE c.program_code = t.program_code)
+  `).all();
+  return courseYearMap(rows);
 }
 
 // Friendly 403 for cross-department tampering (keeps the deny, drops the scare).
@@ -178,14 +191,22 @@ router.get('/grade-entry', async (req, res) => {
   // Get course offerings
   const off = programFilter(scope, 'co.program_code');
   const offerings = activeSemester ? await db.prepare(`
-    SELECT co.*,
+    SELECT co.*, u.full_name as instructor_name,
       (SELECT COUNT(*) FROM enrollments e WHERE e.offering_id = co.id AND e.status = 'enrolled') as enrolled_count,
       (SELECT gs.status FROM grade_submissions gs WHERE gs.offering_id = co.id) as submission_status,
       (SELECT gs.submitted_at FROM grade_submissions gs WHERE gs.offering_id = co.id) as submitted_at
     FROM course_offerings co
+    LEFT JOIN users u ON u.id = co.instructor_id
     WHERE co.semester_id = ?${off.clause}
     ORDER BY co.course_code
   `).all(activeSemester.id, ...off.params) : [];
+
+  attachYearLevels(offerings, await curriculumYearMap());
+  offerings.sort((a, b) =>
+    (a.year_level || 99) - (b.year_level || 99) ||
+    String(a.course_code).localeCompare(String(b.course_code)) ||
+    String(a.section).localeCompare(String(b.section))
+  );
 
   res.render('dean/grade-entry', {
     title: 'Grade Entry - PCC Student Portal',
@@ -203,6 +224,7 @@ router.get('/grade-entry/:offeringId', async (req, res) => {
   if (!offering || !inScope(await deanScope(req), offering.program_code)) {
     return res.redirect('/dean/grade-entry');
   }
+  attachYearLevels([offering], await curriculumYearMap());
 
   // Get enrolled students with existing grades
   const students = await db.prepare(`
@@ -717,7 +739,7 @@ router.get('/year-levels', async (req, res) => {
     ORDER BY t.program_code
   `).all(...tp.params);
 
-  const yearStats = [1, 2, 3, 4].map(async year => {
+  const yearStats = await Promise.all([1, 2, 3, 4].map(async year => {
     const sc = programFilter(scope, 'program_code');
     const sc2 = programFilter(scope, 'program_code');
     return {
@@ -730,18 +752,33 @@ router.get('/year-levels', async (req, res) => {
         WHERE status = 'active' AND year_level = ? AND section IS NOT NULL AND trim(section) <> ''${sc2.clause}
       `).get(year, ...sc2.params)).c
     };
-  });
+  }));
 
-  const programs = templates.map(t => ({
-    program_code: t.program_code,
-    program_name: t.program_name,
-    years: [1, 2, 3, 4].map(async year => {
-      const stat = await db.prepare(`
-        SELECT COUNT(*) as subjects, COALESCE(SUM(credits), 0) as units
-        FROM curriculum_items WHERE template_id = ? AND semester_number IN (?, ?)
-      `).get(t.template_id, year * 2 - 1, year * 2);
-      return { year, subjects: stat.subjects, units: stat.units };
-    })
+  const programs = await Promise.all(templates.map(async t => {
+    const items = await db.prepare(`
+      SELECT course_code, course_name, credits, semester_number
+      FROM curriculum_items
+      WHERE template_id = ?
+      ORDER BY semester_number, display_order
+    `).all(t.template_id);
+
+    return {
+      program_code: t.program_code,
+      program_name: t.program_name,
+      years: [1, 2, 3, 4].map(year => {
+        const sem1 = items.filter(i => Number(i.semester_number) === year * 2 - 1);
+        const sem2 = items.filter(i => Number(i.semester_number) === year * 2);
+        return {
+          year,
+          subjects: sem1.length + sem2.length,
+          units: sem1.concat(sem2).reduce((total, c) => total + Number(c.credits || 0), 0),
+          semesters: [
+            { label: '1st Semester', items: sem1 },
+            { label: '2nd Semester', items: sem2 }
+          ]
+        };
+      })
+    };
   }));
 
   res.render('dean/year-levels', {
@@ -806,7 +843,7 @@ router.get('/year-levels/:year', async (req, res) => {
     ORDER BY upper(trim(section))
   `).all(year, ...sec.params);
 
-  const sectionsWithRosters = sections.map(async s => {
+  const sectionsWithRosters = await Promise.all(sections.map(async s => {
     const rs = programFilter(scope, 's.program_code');
     return {
       ...s,
@@ -819,7 +856,7 @@ router.get('/year-levels/:year', async (req, res) => {
         ORDER BY s.last_name, s.first_name
       `).all(year, s.section, ...rs.params)
     };
-  });
+  }));
 
   const un = programFilter(scope, 'program_code');
   const un2 = programFilter(scope, 's.program_code');

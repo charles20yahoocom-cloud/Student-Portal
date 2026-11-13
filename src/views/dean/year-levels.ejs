@@ -130,6 +130,48 @@
               </a>
             <% }) %>
           </div>
+
+          <!-- Subjects for each year and semester -->
+          <div class="mt-8 space-y-4">
+            <% p.years.forEach(y => { %>
+              <div class="rounded-xl border overflow-hidden">
+                <div class="px-4 py-3 flex items-center justify-between flex-wrap gap-2" style="background:linear-gradient(135deg,rgba(30,66,159,.06),rgba(212,175,55,.10));">
+                  <h3 class="font-display font-bold text-royal-900">Year <%= y.year %></h3>
+                  <span class="text-xs text-gray-600"><%= y.subjects %> subject<%= y.subjects === 1 ? '' : 's' %> &middot; <%= y.units %> units</span>
+                </div>
+                <% if (y.subjects === 0) { %>
+                  <p class="px-4 py-4 text-sm text-gray-400">No subjects loaded for this year level.</p>
+                <% } else { %>
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+                    <% y.semesters.forEach(sem => { %>
+                      <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2"><%= sem.label %></p>
+                        <% if (!sem.items.length) { %>
+                          <p class="text-sm text-gray-400">No subjects</p>
+                        <% } else { %>
+                          <table class="w-full text-sm">
+                            <tbody>
+                              <% sem.items.forEach(c => { %>
+                                <tr class="border-b border-gray-100">
+                                  <td class="py-1.5 pr-2 font-mono text-pcc-blue whitespace-nowrap align-top"><%= c.course_code %></td>
+                                  <td class="py-1.5 pr-2 text-gray-700"><%= c.course_name %></td>
+                                  <td class="py-1.5 text-right text-gray-600 whitespace-nowrap"><%= c.credits %></td>
+                                </tr>
+                              <% }) %>
+                              <tr class="font-medium text-royal-900">
+                                <td class="pt-2 pr-2" colspan="2">Semester Total</td>
+                                <td class="pt-2 text-right"><%= sem.items.reduce((s, c) => s + Number(c.credits || 0), 0) %></td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        <% } %>
+                      </div>
+                    <% }) %>
+                  </div>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
         </div>
       <% }) %>
     <% } %>

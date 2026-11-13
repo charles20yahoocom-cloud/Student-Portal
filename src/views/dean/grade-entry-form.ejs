@@ -38,7 +38,7 @@
         <div>
           <h1 class="text-xl font-bold text-gray-800"><%= offering.course_code %> - <%= offering.course_name %></h1>
           <p class="text-gray-500 mt-1">
-            Section <%= offering.section %> | <%= students.length %> students | 
+            <%= offering.year_level ? 'Year ' + offering.year_level + ' · ' : '' %>Section <%= offering.section %> | <%= students.length %> students | 
             <%= activeSemester ? activeSemester.name + ' ' + activeSemester.school_year : '' %>
           </p>
           <p class="text-xs text-gray-400 mt-1">

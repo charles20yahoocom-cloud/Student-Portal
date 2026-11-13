@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const db = require('../config/database-runtime');
 const { requireAuth, requireRole } = require('../middleware/authenticate');
+const { courseYearMap, attachYearLevels } = require('../utils/curriculum');
 
 const importUpload = multer({
   storage: multer.memoryStorage(),
@@ -190,6 +191,18 @@ router.get('/subjects', async (req, res) => {
   });
 });
 
+// Year level for each course, taken from the newest official curriculum
+// template of the offering's program.
+async function curriculumYearMap() {
+  const rows = await db.prepare(`
+    SELECT t.program_code, ci.course_code, ci.semester_number
+    FROM curriculum_items ci
+    JOIN curriculum_templates t ON t.id = ci.template_id
+    WHERE t.id = (SELECT MAX(id) FROM curriculum_templates c WHERE c.program_code = t.program_code)
+  `).all();
+  return courseYearMap(rows);
+}
+
 // GET /faculty/grade-entry — subjects/sections held by this instructor
 router.get('/grade-entry', async (req, res) => {
   const activeSemester = await db.prepare('SELECT * FROM semesters WHERE is_active = 1').get();
@@ -207,6 +220,8 @@ router.get('/grade-entry', async (req, res) => {
     ORDER BY co.course_code, co.section
   `).all(req.user.id, activeSemester.id) : [];
 
+  attachYearLevels(offerings, await curriculumYearMap());
+
   res.render('faculty/grade-entry', {
     title: 'Grade Entry - PCC Student Portal',
     activeSemester,
@@ -223,6 +238,7 @@ router.get('/grade-entry/:offeringId', async (req, res) => {
   if (!offering || offering.instructor_id !== req.user.id) {
     return res.redirect('/faculty/grade-entry');
   }
+  attachYearLevels([offering], await curriculumYearMap());
 
   const students = await db.prepare(`
     SELECT e.id as enrollment_id, e.student_id, s.student_no, s.first_name, s.last_name,

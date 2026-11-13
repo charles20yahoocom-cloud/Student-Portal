@@ -42,9 +42,12 @@
               <div>
                 <h3 class="font-semibold text-gray-800"><%= offering.course_code %></h3>
                 <p class="text-sm text-gray-500 mt-1"><%= offering.course_name %></p>
+                <p class="text-xs text-gray-400 mt-1">
+                  Instructor: <%= offering.instructor_name || 'Unassigned' %>
+                </p>
               </div>
-              <span class="px-3 py-1 rounded-full text-sm font-medium bg-pcc-blue/10 text-pcc-blue">
-                Sec. <%= offering.section %>
+              <span class="px-3 py-1 rounded-full text-sm font-medium bg-pcc-blue/10 text-pcc-blue whitespace-nowrap">
+                <%= offering.year_level ? 'Year ' + offering.year_level + ' · ' : '' %>Sec. <%= offering.section %>
               </span>
             </div>
             <div class="flex items-center justify-between">
